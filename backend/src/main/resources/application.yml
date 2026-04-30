@@ -1,0 +1,49 @@
+server:
+  port: 8088
+
+debug: false
+
+spring:
+  application:
+    name: bee-geo-backend
+  profiles:
+    active: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  sql:
+    init:
+      mode: always
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.hibernate.SQL: INFO
+
+bee-geo:
+  cors:
+    allowed-origins:
+      - http://127.0.0.1:5178
+      - http://localhost:5178
+  publish:
+    max-retry-count: 3
+    retry-delays:
+      - 5m
+      - 15m
+      - 30m
+    scheduler:
+      enabled: true
+      initial-delay-ms: 10000
+      fixed-delay-ms: 30000
+      retry-delay-seconds: 300
+  security:
+    credential-mask: "******"
+    credential-secret: ${BEE_GEO_CREDENTIAL_SECRET:bee-geo-local-development-secret-change-before-production}
+    seed-demo-credentials: ${BEE_GEO_SEED_DEMO_CREDENTIALS:true}
+    require-operator-header: ${BEE_GEO_REQUIRE_OPERATOR_HEADER:false}

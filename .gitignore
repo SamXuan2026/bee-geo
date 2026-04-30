@@ -1,0 +1,9 @@
+frontend/dist/
+frontend/node_modules/
+backend/target/
+.downloads/
+.toolchains/
+.m2/
+.runtime/
+.DS_Store
+*.log
