@@ -1,10 +1,11 @@
-package com.beegeo.geo.adapter;
+package com.beegeo.common.ai;
 
-import com.beegeo.common.ai.AiProvider;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "bee-geo.ai.provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiProvider implements AiProvider {
 
     @Override

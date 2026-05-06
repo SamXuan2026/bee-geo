@@ -27,6 +27,8 @@ logging:
     org.hibernate.SQL: INFO
 
 bee-geo:
+  ai:
+    provider: ${BEE_GEO_AI_PROVIDER:mock}
   cors:
     allowed-origins:
       - http://127.0.0.1:5178
