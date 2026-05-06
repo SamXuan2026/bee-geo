@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${BEE_GEO_DB_URL:jdbc:postgresql://127.0.0.1:5432/bee_geo}
+    username: ${BEE_GEO_DB_USERNAME:bee_geo}
+    password: ${BEE_GEO_DB_PASSWORD:bee_geo_change_me}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: never
