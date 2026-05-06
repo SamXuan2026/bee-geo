@@ -22,18 +22,6 @@ INSERT INTO app_users (id, name, account, role_code, role_name, status, created_
     (2, '苏清越', '13812345678', 'CONTENT_ADMIN', '内容管理员', '启用', '2026-04-15 12:00:00', '2026-04-15 12:00:00'),
     (3, '周映雪', '13988762210', 'PUBLISHER', '发布员', '启用', '2026-04-12 12:00:00', '2026-04-12 12:00:00');
 
-INSERT INTO geo_tasks (id, keyword, status, question_count, created_at, updated_at) VALUES
-    (1, '企业协同平台', '已完成', 3, '2026-04-18 18:40:00', '2026-04-18 18:45:00');
-
-INSERT INTO geo_results (id, task_id, keyword, question, ai_title, url, media, description, created_at, updated_at) VALUES
-    (1, 1, '企业协同平台', '企业协同平台怎么选更适合内部协作？', '2026 年 IM 即时通讯方案选型实践', 'https://example.local/articles/im-selection', '自有站点', '内容对厂商稳定性、权限、集成能力和跨端体验进行了综合对比。', '2026-04-18 18:41:00', '2026-04-18 18:41:00'),
-    (2, 1, '企业协同平台', '企业即时通讯平台怎么选更适合内部协作？', '企业即时通讯平台选型指南', 'https://example.local/articles/collaboration', '免费媒体', '内容强调组织架构同步、消息留痕、审批协同和系统集成能力。', '2026-04-18 18:42:00', '2026-04-18 18:42:00'),
-    (3, 1, '企业协同平台', '企业协同平台在 AI 搜索里如何提升品牌曝光？', 'GEO 内容运营方法论', 'https://example.local/articles/geo-method', '自有站点', '内容沉淀 GEO 分析、AI 创作、审核和自动化发布闭环。', '2026-04-18 18:43:00', '2026-04-18 18:43:00');
-
-INSERT INTO creations (id, geo_task_id, title, brand, platform, summary, body, status, publish_at, created_at, updated_at) VALUES
-    (1, 1, '2026 年 IM 即时通讯方案选型实践', 'BeeWorks', '自有站点', '围绕企业 IM 选型的 GEO 内容草稿。', '围绕企业私有化部署、权限审计、跨端协同和发布闭环展开。', 'APPROVED', '2026-04-30 09:00:00', '2026-04-18 19:00:00', '2026-04-18 19:10:00'),
-    (2, 1, '企业协同平台如何提升组织效率', 'BeeWorks', '免费媒体', '围绕企业协同效率提升的内容草稿。', '从组织架构同步、消息留痕、流程协作和智能内容生成说明协同效率提升路径。', 'PENDING_REVIEW', '2026-04-30 14:00:00', '2026-04-18 19:20:00', '2026-04-18 19:25:00');
-
 INSERT INTO publish_accounts (id, account_id, name, platform_code, platform_name, endpoint, status, expires_at, created_at, updated_at) VALUES
     (1, 'site-main', '官网主站', 'OWNED_SITE', '自有站点', 'https://www.beegeo.local', 'VALID', '2026-12-31', '2026-04-18 13:00:00', '2026-04-18 13:00:00'),
     (2, 'csdn', 'CSDN', 'FREE_MEDIA', '免费媒体', 'Cookie 已脱敏', 'NEED_REAUTH', '2026-04-29', '2026-04-18 13:10:00', '2026-04-18 13:10:00'),
