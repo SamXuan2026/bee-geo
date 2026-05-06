@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "bee-geo.ai.provider", havingValue = "deepseek")
+@ConditionalOnExpression("T(System).getenv('DEEPSEEK_API_KEY') != null && !T(System).getenv('DEEPSEEK_API_KEY').isBlank()")
 public class DeepSeekAiProvider implements AiProvider {
 
     private static final Logger log = LoggerFactory.getLogger(DeepSeekAiProvider.class);
@@ -38,7 +38,8 @@ public class DeepSeekAiProvider implements AiProvider {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = new ObjectMapper()
+            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     DeepSeekAiProvider(HttpClient httpClient, String apiKey, String model, String endpoint, ObjectMapper objectMapper) {
@@ -128,6 +129,7 @@ public class DeepSeekAiProvider implements AiProvider {
         }
     }
 
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static class ChatResponse {
         public List<Choice> choices;
     }
