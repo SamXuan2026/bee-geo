@@ -32,7 +32,9 @@ public class DeepSeekAiProvider implements AiProvider {
         }
         String configModel = System.getenv("DEEPSEEK_MODEL");
         this.model = (configModel != null && !configModel.isBlank()) ? configModel : "deepseek-chat";
-        this.endpoint = "https://api.deepseek.com/v1/chat/completions";
+        String configBaseUrl = System.getenv("DEEPSEEK_BASE_URL");
+        String baseUrl = (configBaseUrl != null && !configBaseUrl.isBlank()) ? configBaseUrl : "https://api.deepseek.com";
+        this.endpoint = baseUrl.replaceAll("/$", "") + "/v1/chat/completions";
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
