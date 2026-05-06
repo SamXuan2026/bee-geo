@@ -12,7 +12,7 @@ export DEBUG=false
 # DeepSeek AI Provider（生产环境按需设置）
 # export BEE_GEO_AI_PROVIDER=deepseek
 # export DEEPSEEK_API_KEY=your-api-key
-# export DEEPSEEK_MODEL=deepseek-chat
+# export DEEPSEEK_MODEL=deepseek-v4-pro
 
 echo "bee-geo 环境已加载"
 echo "JAVA_HOME=$JAVA_HOME"
