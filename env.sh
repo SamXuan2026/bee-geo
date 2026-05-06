@@ -9,10 +9,10 @@ export MAVEN_HOME="$BEE_GEO_HOME/.toolchains/apache-maven-3.9.15"
 export PATH="$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH"
 export DEBUG=false
 
-# 通义千问 AI Provider（生产环境按需设置）
-# export BEE_GEO_AI_PROVIDER=qwen
-# export DASHSCOPE_API_KEY=your-api-key
-# export DASHSCOPE_MODEL=qwen-plus
+# DeepSeek AI Provider（生产环境按需设置）
+# export BEE_GEO_AI_PROVIDER=deepseek
+# export DEEPSEEK_API_KEY=your-api-key
+# export DEEPSEEK_MODEL=deepseek-chat
 
 echo "bee-geo 环境已加载"
 echo "JAVA_HOME=$JAVA_HOME"

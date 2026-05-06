@@ -14,10 +14,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "bee-geo.ai.provider", havingValue = "qwen")
-public class QwenAiProvider implements AiProvider {
+@ConditionalOnProperty(name = "bee-geo.ai.provider", havingValue = "deepseek")
+public class DeepSeekAiProvider implements AiProvider {
 
-    private static final Logger log = LoggerFactory.getLogger(QwenAiProvider.class);
+    private static final Logger log = LoggerFactory.getLogger(DeepSeekAiProvider.class);
 
     private final String apiKey;
     private final String model;
@@ -25,21 +25,21 @@ public class QwenAiProvider implements AiProvider {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public QwenAiProvider() {
-        this.apiKey = System.getenv("DASHSCOPE_API_KEY");
+    public DeepSeekAiProvider() {
+        this.apiKey = System.getenv("DEEPSEEK_API_KEY");
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("DASHSCOPE_API_KEY 环境变量未设置，通义千问 API Key 为必填项");
+            throw new IllegalStateException("DEEPSEEK_API_KEY 环境变量未设置，DeepSeek API Key 为必填项");
         }
-        String configModel = System.getenv("DASHSCOPE_MODEL");
-        this.model = (configModel != null && !configModel.isBlank()) ? configModel : "qwen-plus";
-        this.endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+        String configModel = System.getenv("DEEPSEEK_MODEL");
+        this.model = (configModel != null && !configModel.isBlank()) ? configModel : "deepseek-chat";
+        this.endpoint = "https://api.deepseek.com/v1/chat/completions";
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
         this.objectMapper = new ObjectMapper();
     }
 
-    QwenAiProvider(HttpClient httpClient, String apiKey, String model, String endpoint, ObjectMapper objectMapper) {
+    DeepSeekAiProvider(HttpClient httpClient, String apiKey, String model, String endpoint, ObjectMapper objectMapper) {
         this.httpClient = httpClient;
         this.apiKey = apiKey;
         this.model = model;
@@ -103,26 +103,26 @@ public class QwenAiProvider implements AiProvider {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                log.error("通义千问 API 返回非200状态码：{}，响应：{}", response.statusCode(), response.body());
-                throw new AiProviderException("通义千问 API 调用失败，状态码：" + response.statusCode());
+                log.error("DeepSeek API 返回非200状态码：{}，响应：{}", response.statusCode(), response.body());
+                throw new AiProviderException("DeepSeek API 调用失败，状态码：" + response.statusCode());
             }
 
             ChatResponse chatResponse = objectMapper.readValue(response.body(), ChatResponse.class);
             if (chatResponse.choices == null || chatResponse.choices.isEmpty()) {
-                throw new AiProviderException("通义千问 API 返回空响应");
+                throw new AiProviderException("DeepSeek API 返回空响应");
             }
 
             String content = chatResponse.choices.get(0).message.content;
             if (content == null || content.isBlank()) {
-                throw new AiProviderException("通义千问 API 返回空内容");
+                throw new AiProviderException("DeepSeek API 返回空内容");
             }
 
             return content.trim();
         } catch (AiProviderException e) {
             throw e;
         } catch (Exception e) {
-            log.error("通义千问 API 调用异常", e);
-            throw new AiProviderException("通义千问 API 调用失败：" + e.getMessage(), e);
+            log.error("DeepSeek API 调用异常", e);
+            throw new AiProviderException("DeepSeek API 调用失败：" + e.getMessage(), e);
         }
     }
 

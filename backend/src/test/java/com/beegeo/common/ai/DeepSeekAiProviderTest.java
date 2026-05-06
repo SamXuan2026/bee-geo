@@ -9,13 +9,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class QwenAiProviderTest {
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
+class DeepSeekAiProviderTest {
 
     @Test
     void shouldGenerateGeoQuestions() {
-        QwenAiProvider provider = new StubProvider("""
+        DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"怎么选型更适合企业内部协作？\\n在 AI 搜索结果中如何提升品牌曝光？\\n与竞品相比有哪些可验证优势？"}}]}
             """, 200);
 
@@ -27,7 +25,7 @@ class QwenAiProviderTest {
 
     @Test
     void shouldGenerateArticle() {
-        QwenAiProvider provider = new StubProvider("""
+        DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"# 企业协同平台选型指南\\n\\n## 摘要\\n本文分析企业协同平台的选型要点"}}]}
             """, 200);
 
@@ -39,7 +37,7 @@ class QwenAiProviderTest {
 
     @Test
     void shouldGeneratePersona() {
-        QwenAiProvider provider = new StubProvider("""
+        DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"专业、克制、关注业务价值和风险提示的企业内容顾问。"}}]}
             """, 200);
 
@@ -51,35 +49,35 @@ class QwenAiProviderTest {
 
     @Test
     void shouldThrowOnNon200Response() {
-        QwenAiProvider provider = new StubProvider("{\"error\":\"Invalid API Key\"}", 401);
+        DeepSeekAiProvider provider = new StubProvider("{\"error\":\"Invalid API Key\"}", 401);
 
         assertThrows(AiProviderException.class, () -> provider.generateGeoQuestions("test"));
     }
 
     @Test
     void shouldThrowOnEmptyChoices() {
-        QwenAiProvider provider = new StubProvider("{\"choices\":[]}", 200);
+        DeepSeekAiProvider provider = new StubProvider("{\"choices\":[]}", 200);
 
         assertThrows(AiProviderException.class, () -> provider.generateArticle("test", "test"));
     }
 
     @Test
     void shouldThrowOnNullContent() {
-        QwenAiProvider provider = new StubProvider("{\"choices\":[{\"message\":{\"content\":null}}]}", 200);
+        DeepSeekAiProvider provider = new StubProvider("{\"choices\":[{\"message\":{\"content\":null}}]}", 200);
 
         assertThrows(AiProviderException.class, () -> provider.generatePersona("test"));
     }
 
     @Test
     void shouldThrowOnMalformedJson() {
-        QwenAiProvider provider = new StubProvider("not json", 200);
+        DeepSeekAiProvider provider = new StubProvider("not json", 200);
 
         assertThrows(AiProviderException.class, () -> provider.generateGeoQuestions("test"));
     }
 
     @Test
     void shouldTrimBlankLinesFromQuestions() {
-        QwenAiProvider provider = new StubProvider("""
+        DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"问题A\\n  \\n问题B\\n\\n问题C"}}]}
             """, 200);
 
@@ -93,7 +91,7 @@ class QwenAiProviderTest {
 
     @Test
     void shouldPreserveArticleFormatting() {
-        QwenAiProvider provider = new StubProvider("""
+        DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"# 标题\\n\\n## 摘要\\n摘要内容\\n\\n## 正文\\n正文内容"}}]}
             """, 200);
 
@@ -104,13 +102,13 @@ class QwenAiProviderTest {
         assertTrue(article.contains("## 正文"));
     }
 
-    private static class StubProvider extends QwenAiProvider {
+    private static class StubProvider extends DeepSeekAiProvider {
         private final String responseBody;
         private final int statusCode;
 
         StubProvider(String responseBody, int statusCode) {
-            super(null, "test-api-key", "qwen-plus",
-                "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+            super(null, "test-api-key", "deepseek-chat",
+                "https://api.deepseek.com/v1/chat/completions",
                 new ObjectMapper());
             this.responseBody = responseBody;
             this.statusCode = statusCode;
@@ -119,23 +117,23 @@ class QwenAiProviderTest {
         @Override
         String chat(String systemPrompt, String userPrompt) {
             if (statusCode != 200) {
-                throw new AiProviderException("通义千问 API 调用失败，状态码：" + statusCode);
+                throw new AiProviderException("DeepSeek API 调用失败，状态码：" + statusCode);
             }
             try {
                 ObjectMapper mapper = new ObjectMapper();
                 ChatResponse cr = mapper.readValue(responseBody, ChatResponse.class);
                 if (cr.choices == null || cr.choices.isEmpty()) {
-                    throw new AiProviderException("通义千问 API 返回空响应");
+                    throw new AiProviderException("DeepSeek API 返回空响应");
                 }
                 String content = cr.choices.get(0).message.content;
                 if (content == null || content.isBlank()) {
-                    throw new AiProviderException("通义千问 API 返回空内容");
+                    throw new AiProviderException("DeepSeek API 返回空内容");
                 }
                 return content.trim();
             } catch (AiProviderException e) {
                 throw e;
             } catch (Exception e) {
-                throw new AiProviderException("通义千问 API 调用失败：" + e.getMessage(), e);
+                throw new AiProviderException("DeepSeek API 调用失败：" + e.getMessage(), e);
             }
         }
     }
