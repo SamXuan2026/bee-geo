@@ -99,7 +99,7 @@ async function main() {
     assertResult(item.maskedCredential === '' || item.maskedCredential === '******', '集成账号只能返回空值或脱敏凭据');
   });
 
-  await checkList('权限矩阵', '/api/security/permissions', item => assertResult(Boolean(item.code), '权限点必须包含编码'));
+  await checkList('权限矩阵', '/api/security/permissions', item => assertResult(Boolean(item.permission), '权限点必须包含编码'));
   const auditPage = await request('/api/audit/logs/page?page=1&pageSize=5');
   assertResult(Array.isArray(auditPage.items), '审计分页必须包含 items 数组');
   assertResult(typeof auditPage.total === 'number', '审计分页必须包含 total 数字');
