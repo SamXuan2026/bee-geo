@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -49,6 +50,7 @@ class BackendApiIntegrationTest {
         long geoTaskId = postAndReadDataId("/api/geo/tasks", """
             {"keyword":"核心接口只读验收"}
             """);
+        waitForGeoTaskCompleted(geoTaskId);
         assertSuccessfulGet("/api/geo/tasks").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/geo/tasks/" + geoTaskId + "/results").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/creations").andExpect(jsonPath("$.data.length()", greaterThan(0)));
@@ -67,6 +69,7 @@ class BackendApiIntegrationTest {
         long geoTaskId = postAndReadDataId("/api/geo/tasks", """
             {"keyword":"浏览器点击回归"}
             """);
+        waitForGeoTaskCompleted(geoTaskId);
 
         long creationId = postAndReadDataId("/api/geo/tasks/" + geoTaskId + "/create-draft", "{}");
 
@@ -178,7 +181,24 @@ class BackendApiIntegrationTest {
 
     private long postAndReadDataId(String path, String body) throws Exception {
         MvcResult result = postOk(path, body).andReturn();
-        JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString());
+        JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
         return payload.path("data").path("id").asLong();
+    }
+
+    private void waitForGeoTaskCompleted(long geoTaskId) throws Exception {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            MvcResult result = assertSuccessfulGet("/api/geo/tasks/" + geoTaskId).andReturn();
+            JsonNode payload = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+            String status = payload.path("data").path("status").asText();
+            if ("已完成".equals(status)) {
+                return;
+            }
+            if ("失败".equals(status)) {
+                throw new AssertionError(payload.path("data").path("failureReason").asText("GEO 任务失败"));
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("GEO 异步任务未在预期时间内完成：" + geoTaskId);
     }
 }

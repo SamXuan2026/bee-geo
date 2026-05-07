@@ -17,6 +17,9 @@ public class GeoTaskEntity extends BaseEntity {
     @Column(name = "question_count", nullable = false)
     private Integer questionCount = 0;
 
+    @Column(name = "failure_reason", length = 1000)
+    private String failureReason;
+
     protected GeoTaskEntity() {
     }
 
@@ -28,6 +31,12 @@ public class GeoTaskEntity extends BaseEntity {
     public void markCompleted(int questionCount) {
         this.status = "已完成";
         this.questionCount = questionCount;
+        this.failureReason = null;
+    }
+
+    public void markFailed(String failureReason) {
+        this.status = "失败";
+        this.failureReason = limitFailureReason(failureReason);
     }
 
     public String getKeyword() {
@@ -40,5 +49,20 @@ public class GeoTaskEntity extends BaseEntity {
 
     public Integer getQuestionCount() {
         return questionCount;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    private String limitFailureReason(String value) {
+        if (value == null || value.isBlank()) {
+            return "AI 分析失败，请查看后端日志";
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 1000) {
+            return normalized;
+        }
+        return normalized.substring(0, 1000);
     }
 }

@@ -69,9 +69,10 @@ export interface GeoTask {
   taskId?: number;
   keyword?: string;
   question: string;
-  status: "已完成" | "分析中" | "待处理";
+  status: "已完成" | "分析中" | "失败" | "待处理";
   createdAt: string;
   questions?: string[];
+  failureReason?: string;
 }
 
 export interface GeoReference {

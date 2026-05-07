@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 
 class GeoApplicationServiceTest {
@@ -36,48 +38,80 @@ class GeoApplicationServiceTest {
     private final AiProvider aiProvider = mock(AiProvider.class);
     private final CreationApplicationService creationApplicationService = mock(CreationApplicationService.class);
     private final AuditEventPublisher auditEventPublisher = mock(AuditEventPublisher.class);
+    private final ApplicationEventPublisher applicationEventPublisher = mock(ApplicationEventPublisher.class);
     private final GeoApplicationService service = new GeoApplicationService(
         geoTaskRepository,
         geoResultRepository,
         aiProvider,
         creationApplicationService,
-        auditEventPublisher
+        auditEventPublisher,
+        applicationEventPublisher
     );
 
     @Test
-    void shouldCreateGeoTaskAndPersistGeneratedResults() {
+    void shouldCreateGeoTaskAndPublishAsyncEvent() {
         when(geoTaskRepository.save(any(GeoTaskEntity.class))).thenAnswer(invocation -> {
             GeoTaskEntity task = invocation.getArgument(0);
             setBaseField(task, "id", 41L);
             setBaseField(task, "createdAt", LocalDateTime.of(2026, 4, 30, 17, 0));
             return task;
         });
-        when(aiProvider.providerName()).thenReturn("DeepSeek");
-        when(aiProvider.generateGeoInsights("企业协同平台")).thenReturn(List.of(
-            new GeoInsight("问题一", "标题一", "模型生成说明一"),
-            new GeoInsight("问题二", "标题二", "模型生成说明二")
-        ));
-        when(geoResultRepository.findByTaskId(eq(41L), any(Sort.class))).thenReturn(List.of(
-            result(1L, 41L, "企业协同平台", "问题一"),
-            result(2L, 41L, "企业协同平台", "问题二")
-        ));
+        when(geoResultRepository.findByTaskId(eq(41L), any(Sort.class))).thenReturn(List.of());
 
         GeoTaskView view = service.createTask(" 企业协同平台 ");
 
         assertEquals(41L, view.id());
         assertEquals("企业协同平台", view.keyword());
-        assertEquals("已完成", view.status());
-        assertEquals(2, view.questions().size());
+        assertEquals("分析中", view.status());
+        assertTrue(view.questions().isEmpty());
 
+        verify(auditEventPublisher).publish("geo", "createTask", "41", "system", true);
+        verify(applicationEventPublisher).publishEvent((Object) argThat(event ->
+            event instanceof GeoTaskCreatedEvent createdEvent && createdEvent.taskId().equals(41L)
+        ));
+    }
+
+    @Test
+    void shouldProcessGeoTaskInWorker() {
+        GeoTaskEntity task = new GeoTaskEntity("企业协同平台");
+        setBaseField(task, "id", 81L);
+        when(geoTaskRepository.findById(81L)).thenReturn(Optional.of(task));
+        when(aiProvider.providerName()).thenReturn("DeepSeek");
+        when(aiProvider.modelName()).thenReturn("deepseek-chat");
+        when(aiProvider.generateGeoInsights("企业协同平台")).thenReturn(List.of(
+            new GeoInsight("问题一", "标题一", "模型生成说明一"),
+            new GeoInsight("问题二", "标题二", "模型生成说明二")
+        ));
+
+        new GeoTaskWorker(geoTaskRepository, geoResultRepository, aiProvider, auditEventPublisher).process(81L);
+
+        assertEquals("已完成", task.getStatus());
+        assertEquals(2, task.getQuestionCount());
         ArgumentCaptor<GeoResultEntity> resultCaptor = ArgumentCaptor.forClass(GeoResultEntity.class);
         verify(geoResultRepository, org.mockito.Mockito.times(2)).save(resultCaptor.capture());
-        assertEquals(41L, resultCaptor.getAllValues().get(0).getTaskId());
+        assertEquals(81L, resultCaptor.getAllValues().get(0).getTaskId());
         assertEquals("问题一", resultCaptor.getAllValues().get(0).getQuestion());
         assertEquals("标题一", resultCaptor.getAllValues().get(0).getAiTitle());
         assertEquals("模型生成说明一", resultCaptor.getAllValues().get(0).getDescription());
         assertEquals("DeepSeek", resultCaptor.getAllValues().get(0).getMedia());
         assertEquals("", resultCaptor.getAllValues().get(0).getUrl());
-        verify(auditEventPublisher).publish("geo", "createTask", "41", "system", true);
+        verify(auditEventPublisher).publish("geo", "completeTask", "81", "system", true);
+    }
+
+    @Test
+    void shouldMarkGeoTaskFailedWhenWorkerFailed() {
+        GeoTaskEntity task = new GeoTaskEntity("企业协同平台");
+        setBaseField(task, "id", 91L);
+        when(geoTaskRepository.findById(91L)).thenReturn(Optional.of(task));
+        when(aiProvider.providerName()).thenReturn("DeepSeek");
+        when(aiProvider.modelName()).thenReturn("deepseek-chat");
+        when(aiProvider.generateGeoInsights("企业协同平台")).thenThrow(new IllegalStateException("模型调用失败"));
+
+        new GeoTaskWorker(geoTaskRepository, geoResultRepository, aiProvider, auditEventPublisher).process(91L);
+
+        assertEquals("失败", task.getStatus());
+        assertEquals("模型调用失败", task.getFailureReason());
+        verify(auditEventPublisher).publish("geo", "completeTask", "91", "system", false);
     }
 
     @Test

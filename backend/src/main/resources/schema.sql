@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS geo_tasks (
     keyword VARCHAR(120) NOT NULL,
     status VARCHAR(40) NOT NULL,
     question_count INTEGER NOT NULL DEFAULT 0,
+    failure_reason VARCHAR(1000),
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );

@@ -25,6 +25,8 @@ const geoSignalItems = [
 ];
 
 const runtimeMode = getGeoRuntimeMode();
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_TIMES = 60;
 
 export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   const [tasks, setTasks] = useState<GeoTask[]>([]);
@@ -78,11 +80,18 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
     }
     setIsSubmitting(true);
     setError("");
-    setNotice("真实 AI 分析中，请勿重复点击，通常需要几十秒");
+    setNotice("任务已创建，正在后台调用真实 AI 分析");
     try {
       const task = await createGeoTask(keyword);
-      setNotice("GEO 分析任务已完成");
       await reload();
+      const finishedTask = await pollTaskUntilFinished(task.id);
+      await reload();
+      if (finishedTask?.status === "失败") {
+        setNotice("");
+        setError(finishedTask.failureReason ?? "GEO 分析失败，请查看后端日志");
+        return;
+      }
+      setNotice("GEO 分析任务已完成");
       setReferences(await listGeoReferences(task.id));
     } catch (err) {
       setNotice("");
@@ -90,6 +99,19 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function pollTaskUntilFinished(taskId: number) {
+    for (let index = 0; index < POLL_MAX_TIMES; index += 1) {
+      await delay(POLL_INTERVAL_MS);
+      const nextTasks = await listGeoTasks();
+      setTasks(nextTasks);
+      const nextTask = nextTasks.find((item) => (item.taskId ?? item.id) === taskId);
+      if (nextTask && nextTask.status !== "分析中") {
+        return nextTask;
+      }
+    }
+    throw new Error("真实 AI 分析仍在后台执行，请稍后刷新任务列表查看结果");
   }
 
   async function openTask(task: GeoTask) {
@@ -143,6 +165,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   });
   const completedCount = tasks.filter((task) => task.status === "已完成").length;
   const runningCount = tasks.filter((task) => task.status === "分析中").length;
+  const failedCount = tasks.filter((task) => task.status === "失败").length;
 
   return (
     <div className="page-stack">
@@ -189,6 +212,10 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
               <strong>{runningCount}</strong>
             </div>
             <div className="control-tile">
+              <span>失败</span>
+              <strong className={failedCount > 0 ? "danger" : ""}>{failedCount}</strong>
+            </div>
+            <div className="control-tile">
               <span>引用来源</span>
               <strong className="on">{references.length}</strong>
             </div>
@@ -225,6 +252,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
             <option value="">全部状态</option>
             <option value="已完成">已完成</option>
             <option value="分析中">分析中</option>
+            <option value="失败">失败</option>
             <option value="待处理">待处理</option>
           </select>
         </Toolbar>
@@ -235,7 +263,10 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
           <tbody>
             {filteredTasks.map((task) => (
               <tr key={task.id}>
-                <td>{task.question}</td>
+                <td>
+                  <div>{task.question}</div>
+                  {task.failureReason ? <small className="table-subtext error">{task.failureReason}</small> : null}
+                </td>
                 <td><StatusBadge status={task.status} /></td>
                 <td>{task.createdAt}</td>
                 <td>
@@ -276,6 +307,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
             <div><span>状态</span><StatusBadge status={selectedTask.status} /></div>
             <div><span>创建时间</span><strong>{selectedTask.createdAt}</strong></div>
             <div><span>问题</span><strong>{selectedTask.question}</strong></div>
+            {selectedTask.failureReason ? <div><span>失败原因</span><strong>{selectedTask.failureReason}</strong></div> : null}
           </div>
         </Modal>
       ) : null}
@@ -304,6 +336,10 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       ) : null}
     </div>
   );
+}
+
+function delay(timeoutMs: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, timeoutMs));
 }
 
 function formatError(error: unknown, fallback: string) {

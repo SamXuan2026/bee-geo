@@ -683,6 +683,19 @@ td {
   color: var(--red);
 }
 
+.table-subtext {
+  display: block;
+  margin-top: 6px;
+  color: #66778a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.table-subtext.error {
+  color: #9f1d34;
+}
+
 .status-badge {
   display: inline-flex;
   min-height: 28px;
@@ -704,7 +717,8 @@ td {
 
 .status-FAILED,
 .status-EXPIRED,
-.status-INVALID {
+.status-INVALID,
+.status-失败 {
   color: #a32038;
   background: rgba(227, 72, 99, 0.15);
 }
@@ -1355,6 +1369,12 @@ body {
   color: #ffffff;
   background: linear-gradient(135deg, #0b999b, #08787e);
   box-shadow: 0 12px 24px rgba(8, 120, 126, 0.22);
+}
+
+.control-tile strong.danger {
+  color: #ffffff;
+  background: linear-gradient(135deg, #e34863, #9f1d34);
+  box-shadow: 0 12px 24px rgba(159, 29, 52, 0.2);
 }
 
 .climate-grid {

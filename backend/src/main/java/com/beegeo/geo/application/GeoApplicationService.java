@@ -1,7 +1,6 @@
 package com.beegeo.geo.application;
 
 import com.beegeo.common.ai.AiProvider;
-import com.beegeo.common.ai.GeoInsight;
 import com.beegeo.common.api.BusinessException;
 import com.beegeo.common.audit.AuditEventPublisher;
 import com.beegeo.creation.application.CreationApplicationService;
@@ -13,6 +12,7 @@ import com.beegeo.geo.domain.GeoTaskView;
 import com.beegeo.geo.repository.GeoResultRepository;
 import com.beegeo.geo.repository.GeoTaskRepository;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,19 +24,22 @@ public class GeoApplicationService {
     private final AiProvider aiProvider;
     private final CreationApplicationService creationApplicationService;
     private final AuditEventPublisher auditEventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public GeoApplicationService(
         GeoTaskRepository geoTaskRepository,
         GeoResultRepository geoResultRepository,
         AiProvider aiProvider,
         CreationApplicationService creationApplicationService,
-        AuditEventPublisher auditEventPublisher
+        AuditEventPublisher auditEventPublisher,
+        ApplicationEventPublisher applicationEventPublisher
     ) {
         this.geoTaskRepository = geoTaskRepository;
         this.geoResultRepository = geoResultRepository;
         this.aiProvider = aiProvider;
         this.creationApplicationService = creationApplicationService;
         this.auditEventPublisher = auditEventPublisher;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -62,12 +65,8 @@ public class GeoApplicationService {
     @Transactional
     public GeoTaskView createTask(String keyword) {
         GeoTaskEntity task = geoTaskRepository.save(new GeoTaskEntity(keyword.trim()));
-        List<GeoInsight> insights = aiProvider.generateGeoInsights(task.getKeyword());
-        for (GeoInsight insight : insights) {
-            geoResultRepository.save(toResult(task, insight));
-        }
-        task.markCompleted(insights.size());
         auditEventPublisher.publish("geo", "createTask", String.valueOf(task.getId()), "system", true);
+        applicationEventPublisher.publishEvent(new GeoTaskCreatedEvent(task.getId()));
         return toTaskView(task);
     }
 
@@ -92,27 +91,11 @@ public class GeoApplicationService {
             .orElseThrow(() -> new BusinessException("GEO_TASK_NOT_FOUND", "GEO 任务不存在"));
     }
 
-    private GeoResultEntity toResult(GeoTaskEntity task, GeoInsight insight) {
-        String providerName = aiProvider.providerName();
-        String media = providerName;
-        String title = limit(insight.aiTitle(), 180);
-        String url = "";
-        String description = limit(insight.description(), 1000);
-        return new GeoResultEntity(task.getId(), task.getKeyword(), insight.question(), title, url, media, description);
-    }
-
-    private String limit(String value, int maxLength) {
-        if (value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength);
-    }
-
     private GeoTaskView toTaskView(GeoTaskEntity entity) {
         List<String> questions = geoResultRepository.findByTaskId(entity.getId(), Sort.by(Sort.Direction.ASC, "id")).stream()
             .map(GeoResultEntity::getQuestion)
             .toList();
-        return new GeoTaskView(entity.getId(), entity.getKeyword(), entity.getStatus(), entity.getCreatedAt(), questions);
+        return new GeoTaskView(entity.getId(), entity.getKeyword(), entity.getStatus(), entity.getCreatedAt(), questions, entity.getFailureReason());
     }
 
     private GeoResultView toResultView(GeoResultEntity entity) {

@@ -73,6 +73,7 @@ interface GeoTaskResponse {
   status: GeoTask["status"];
   createdAt: string;
   questions: string[];
+  failureReason?: string;
 }
 
 interface GeoReferenceResponse {
@@ -100,14 +101,20 @@ interface CreationItemResponse {
 
 function toTaskItems(response: GeoTaskResponse): GeoTask[] {
   if (response.questions.length === 0) {
+    const question = response.status === "分析中"
+      ? `正在分析：${response.keyword}`
+      : response.status === "失败"
+        ? `分析失败：${response.keyword}`
+        : response.keyword;
     return [{
       id: response.id,
       taskId: response.id,
       keyword: response.keyword,
-      question: response.keyword,
+      question,
       status: response.status,
       createdAt: formatDateTime(response.createdAt),
       questions: response.questions,
+      failureReason: response.failureReason,
     }];
   }
   return response.questions.map((question, index) => ({
@@ -118,6 +125,7 @@ function toTaskItems(response: GeoTaskResponse): GeoTask[] {
     status: response.status,
     createdAt: formatDateTime(response.createdAt),
     questions: response.questions,
+    failureReason: response.failureReason,
   }));
 }
 
