@@ -75,6 +75,12 @@ async function main() {
   await checkList('用户列表', '/api/users', item => assertResult(Boolean(item.account), '用户必须包含账号'));
   await checkList('用户角色', '/api/users/roles', item => assertResult(Boolean(item.code), '角色必须包含编码'));
 
+  const aiProvider = await request('/api/ai/provider');
+  assertResult(Boolean(aiProvider.providerName), 'AI Provider 必须返回名称');
+  assertResult(Boolean(aiProvider.modelName), 'AI Provider 必须返回模型名');
+  assertResult(typeof aiProvider.remoteProvider === 'boolean', 'AI Provider 必须返回远程模型标记');
+  record('AI Provider 状态');
+
   const geoTasks = await checkList('GEO 任务', '/api/geo/tasks', item => assertResult(Boolean(item.keyword), 'GEO 任务必须包含关键词'));
   if (geoTasks.length > 0) {
     const detail = await request(`/api/geo/tasks/${geoTasks[0].id}`);

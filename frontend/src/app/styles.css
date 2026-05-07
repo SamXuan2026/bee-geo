@@ -616,6 +616,15 @@ textarea {
   font-weight: 800;
 }
 
+.warning-banner {
+  border: 1px solid rgba(224, 151, 34, 0.28);
+  border-radius: 8px;
+  color: #8a5206;
+  background: rgba(224, 151, 34, 0.12);
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
 .table-actions {
   display: flex;
   flex-wrap: wrap;

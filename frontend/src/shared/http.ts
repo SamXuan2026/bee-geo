@@ -8,6 +8,15 @@ interface ApiResponse<T> {
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:8088/api";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
 const ENABLE_MOCK_FALLBACK = import.meta.env.VITE_ENABLE_MOCK_FALLBACK !== "false";
+const OPERATOR_ACCOUNT = import.meta.env.VITE_OPERATOR_ACCOUNT ?? "13677889001";
+
+export function apiRuntimeMode() {
+  return {
+    apiBaseUrl: API_BASE_URL,
+    mockFallbackEnabled: ENABLE_MOCK_FALLBACK,
+    operatorAccount: OPERATOR_ACCOUNT,
+  };
+}
 
 export async function mockRequest<T>(data: T): Promise<T> {
   return Promise.resolve(data);
@@ -68,6 +77,10 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      headers: {
+        "X-Bee-Account": OPERATOR_ACCOUNT,
+        ...init.headers,
+      },
       signal: controller.signal,
     });
     if (!response.ok) {

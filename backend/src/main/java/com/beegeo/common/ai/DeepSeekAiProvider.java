@@ -1,20 +1,23 @@
 package com.beegeo.common.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnExpression("T(System).getenv('DEEPSEEK_API_KEY') != null && !T(System).getenv('DEEPSEEK_API_KEY').isBlank()")
+@ConditionalOnProperty(prefix = "bee-geo.ai", name = "provider", havingValue = "deepseek")
 public class DeepSeekAiProvider implements AiProvider {
 
     private static final Logger log = LoggerFactory.getLogger(DeepSeekAiProvider.class);
@@ -31,12 +34,13 @@ public class DeepSeekAiProvider implements AiProvider {
             throw new IllegalStateException("DEEPSEEK_API_KEY 环境变量未设置，DeepSeek API Key 为必填项");
         }
         String configModel = System.getenv("DEEPSEEK_MODEL");
-        this.model = (configModel != null && !configModel.isBlank()) ? configModel : "deepseek-chat";
+        this.model = (configModel != null && !configModel.isBlank()) ? configModel : "deepseek-v4-pro";
         String configBaseUrl = System.getenv("DEEPSEEK_BASE_URL");
         String baseUrl = (configBaseUrl != null && !configBaseUrl.isBlank()) ? configBaseUrl : "https://api.deepseek.com";
-        this.endpoint = baseUrl.replaceAll("/$", "") + "/v1/chat/completions";
+        this.endpoint = buildEndpoint(baseUrl);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
+            .version(HttpClient.Version.HTTP_1_1)
             .build();
         this.objectMapper = new ObjectMapper()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -51,6 +55,21 @@ public class DeepSeekAiProvider implements AiProvider {
     }
 
     @Override
+    public String providerName() {
+        return "DeepSeek";
+    }
+
+    @Override
+    public String modelName() {
+        return model;
+    }
+
+    @Override
+    public boolean remoteProvider() {
+        return true;
+    }
+
+    @Override
     public List<String> generateGeoQuestions(String keyword) {
         String systemPrompt = "你是企业品牌曝光策略顾问。针对给定关键词，生成3个具体的GEO（生成式引擎优化）研究问题，"
             + "帮助品牌理解潜在客户在AI搜索中可能提出的问题。只返回3个问题，每行一个，不要编号。";
@@ -62,6 +81,39 @@ public class DeepSeekAiProvider implements AiProvider {
             .filter(line -> !line.isBlank())
             .limit(3)
             .toList();
+    }
+
+    @Override
+    public List<GeoInsight> generateGeoInsights(String keyword) {
+        String systemPrompt = "你是企业品牌GEO分析专家。请针对关键词输出3条结构化GEO分析结果。"
+            + "必须只返回JSON对象，不要Markdown，不要代码块，不要额外解释。"
+            + "顶层字段固定为items，items是数组。"
+            + "数组元素字段固定为：question、aiTitle、description。"
+            + "question 是潜在客户可能在AI搜索中提出的具体问题；"
+            + "aiTitle 是适合生成内容的标题；"
+            + "description 是80到160字的品牌曝光机会、内容缺口和建议。"
+            + "禁止编造外部链接。";
+        String userPrompt = "关键词：" + keyword;
+        String response = chat(systemPrompt, userPrompt, true);
+        try {
+            List<GeoInsightPayload> payloads = readGeoInsightPayloads(response);
+            List<GeoInsight> insights = payloads.stream()
+                .map(payload -> new GeoInsight(
+                    normalizeRequired(payload.question, "question"),
+                    normalizeRequired(payload.aiTitle, "aiTitle"),
+                    normalizeRequired(payload.description, "description")
+                ))
+                .limit(3)
+                .toList();
+            if (insights.isEmpty()) {
+                throw new AiProviderException("DeepSeek GEO 结构化结果为空");
+            }
+            return insights;
+        } catch (AiProviderException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiProviderException("DeepSeek GEO 结构化结果解析失败：" + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -83,20 +135,27 @@ public class DeepSeekAiProvider implements AiProvider {
     }
 
     String chat(String systemPrompt, String userPrompt) {
+        return chat(systemPrompt, userPrompt, false);
+    }
+
+    String chat(String systemPrompt, String userPrompt, boolean jsonOutput) {
         try {
-            Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "messages", List.of(
-                    Map.of("role", "system", "content", systemPrompt),
-                    Map.of("role", "user", "content", userPrompt)
-                ),
-                "temperature", 0.7,
-                "max_tokens", 2048
-            );
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", model);
+            requestBody.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userPrompt)
+            ));
+            requestBody.put("temperature", 0.7);
+            requestBody.put("max_tokens", 2048);
+            if (jsonOutput) {
+                requestBody.put("response_format", Map.of("type", "json_object"));
+            }
 
             String json = objectMapper.writeValueAsString(requestBody);
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
+                .version(HttpClient.Version.HTTP_1_1)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
                 .timeout(Duration.ofSeconds(60))
@@ -129,6 +188,48 @@ public class DeepSeekAiProvider implements AiProvider {
         }
     }
 
+    static String buildEndpoint(String baseUrl) {
+        String normalized = baseUrl.replaceAll("/$", "");
+        if (normalized.endsWith("/chat/completions")) {
+            return normalized;
+        }
+        return normalized + "/chat/completions";
+    }
+
+    private List<GeoInsightPayload> readGeoInsightPayloads(String content) throws com.fasterxml.jackson.core.JsonProcessingException {
+        JsonNode root = objectMapper.readTree(extractJsonPayload(content));
+        JsonNode itemsNode = root.isArray() ? root : root.path("items");
+        if (!itemsNode.isArray()) {
+            throw new AiProviderException("DeepSeek GEO 结构化结果缺少items数组");
+        }
+        return objectMapper.readValue(
+            itemsNode.toString(),
+            new TypeReference<List<GeoInsightPayload>>() {
+            }
+        );
+    }
+
+    private String extractJsonPayload(String content) {
+        int start = content.indexOf('[');
+        int end = content.lastIndexOf(']');
+        int objectStart = content.indexOf('{');
+        int objectEnd = content.lastIndexOf('}');
+        if (objectStart >= 0 && objectEnd > objectStart && (start < 0 || objectStart < start)) {
+            return content.substring(objectStart, objectEnd + 1);
+        }
+        if (start >= 0 && end > start) {
+            return content.substring(start, end + 1);
+        }
+        throw new AiProviderException("DeepSeek GEO 结构化结果不是JSON对象或数组");
+    }
+
+    private String normalizeRequired(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new AiProviderException("DeepSeek GEO 结构化结果缺少字段：" + fieldName);
+        }
+        return value.trim();
+    }
+
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static class ChatResponse {
         public List<Choice> choices;
@@ -140,5 +241,12 @@ public class DeepSeekAiProvider implements AiProvider {
 
     static class Message {
         public String content;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    static class GeoInsightPayload {
+        public String question;
+        public String aiTitle;
+        public String description;
     }
 }

@@ -1,12 +1,22 @@
 package com.beegeo.common.ai;
 
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnExpression("T(System).getenv('DEEPSEEK_API_KEY') == null || T(System).getenv('DEEPSEEK_API_KEY').isBlank()")
+@ConditionalOnProperty(prefix = "bee-geo.ai", name = "provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiProvider implements AiProvider {
+
+    @Override
+    public String providerName() {
+        return "本地兜底";
+    }
+
+    @Override
+    public String modelName() {
+        return "local-mock";
+    }
 
     @Override
     public List<String> generateGeoQuestions(String keyword) {

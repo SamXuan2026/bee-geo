@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { contentWriteRoles, hasAnyRole, permissionTitle } from "../../shared/permissions";
 import type { UserRoleCode } from "../../shared/types";
 import { ConfirmDialog, Modal, PageHeader, Panel, StatusBadge, Toolbar } from "../../shared/ui";
-import { createDraftFromGeo, createGeoTask, listGeoReferences, listGeoTasks } from "./api";
+import { createDraftFromGeo, createGeoTask, getAiProviderStatus, getGeoRuntimeMode, listGeoReferences, listGeoTasks } from "./api";
+import type { AiProviderStatus } from "./api";
 import type { GeoReference, GeoTask } from "./model";
 
 interface GeoPageProps {
@@ -23,6 +24,8 @@ const geoSignalItems = [
   { label: "待补内容", value: "9", unit: "项", tone: "amber" },
 ];
 
+const runtimeMode = getGeoRuntimeMode();
+
 export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   const [tasks, setTasks] = useState<GeoTask[]>([]);
   const [references, setReferences] = useState<GeoReference[]>([]);
@@ -31,14 +34,24 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   const [selectedTask, setSelectedTask] = useState<GeoTask | null>(null);
   const [selectedReference, setSelectedReference] = useState<GeoReference | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GeoTask | null>(null);
+  const [aiProviderStatus, setAiProviderStatus] = useState<AiProviderStatus | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const canWrite = hasAnyRole(currentRole, contentWriteRoles);
   const deniedTitle = permissionTitle(contentWriteRoles);
 
   useEffect(() => {
+    loadAiProviderStatus();
     reload();
   }, []);
+
+  async function loadAiProviderStatus() {
+    try {
+      setAiProviderStatus(await getAiProviderStatus());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "读取 AI Provider 状态失败");
+    }
+  }
 
   async function reload() {
     try {
@@ -125,14 +138,17 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
 
   return (
     <div className="page-stack">
-      <PageHeader title="GEO 分析" description="输入关键词生成模拟问题，分析 AI 引用来源和品牌曝光机会。" actionText="创建分析任务" onAction={submitTask} actionDisabled={!canWrite} actionTitle={canWrite ? undefined : deniedTitle} />
+      <PageHeader title="GEO 分析" description="输入关键词调用后端 AI Provider，生成 GEO 研究问题和品牌曝光分析。" actionText="创建分析任务" onAction={submitTask} actionDisabled={!canWrite} actionTitle={canWrite ? undefined : deniedTitle} />
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="success-banner">{notice}</div> : null}
+      <div className={runtimeMode.mockFallbackEnabled ? "warning-banner" : "success-banner"}>
+        当前前端模式：{runtimeMode.mockFallbackEnabled ? "本地兜底已开启，后端异常时会显示浏览器本地数据" : "真实接口模式，后端异常会直接报错"}；接口地址：{runtimeMode.apiBaseUrl}
+      </div>
       <div className="hero-panel">
         <div>
           <span>当前分析关键词</span>
           <strong>{tasks[0]?.keyword ?? keyword}</strong>
-          <p>已生成 {tasks.length} 个模拟问题，覆盖豆包、DeepSeek、文心一言等模型来源。</p>
+          <p>已生成 {tasks.length} 个 GEO 研究问题；当前模型来源：{aiProviderStatus ? `${aiProviderStatus.providerName} / ${aiProviderStatus.modelName}` : "读取中"}。</p>
         </div>
         <button className="primary-button" type="button" onClick={createDraft} disabled={!canWrite} title={canWrite ? undefined : deniedTitle}>基于结果开始仿写</button>
       </div>
@@ -168,6 +184,10 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
               <span>引用来源</span>
               <strong className="on">{references.length}</strong>
             </div>
+            <div className="control-tile">
+              <span>模型来源</span>
+              <strong className={aiProviderStatus?.remoteProvider ? "on" : ""}>{aiProviderStatus?.providerName ?? "读取中"}</strong>
+            </div>
           </div>
         </div>
         <div className="geo-radar-board">
@@ -190,7 +210,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
           </div>
         </div>
       </section>
-      <Panel title="模拟问题">
+      <Panel title="GEO 研究问题">
         <Toolbar>
           <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="请输入关键词" />
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -202,7 +222,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
         </Toolbar>
         <table>
           <thead>
-            <tr><th>模拟问题</th><th>状态</th><th>时间</th><th>操作</th></tr>
+            <tr><th>研究问题</th><th>状态</th><th>时间</th><th>操作</th></tr>
           </thead>
           <tbody>
             {filteredTasks.map((task) => (
@@ -261,7 +281,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
             <div><span>来源媒体</span><strong>{selectedReference.media}</strong></div>
             <div><span>关键词</span><strong>{selectedReference.keyword}</strong></div>
             <div><span>标题</span><strong>{selectedReference.aiTitle}</strong></div>
-            <div><span>地址</span><a href={selectedReference.url}>{selectedReference.url}</a></div>
+            <div><span>地址</span>{selectedReference.url ? <a href={selectedReference.url}>{selectedReference.url}</a> : <strong>模型生成内容，无外部来源链接</strong>}</div>
           </div>
           <p>{selectedReference.description}</p>
         </Modal>

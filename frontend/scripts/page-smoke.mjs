@@ -94,7 +94,7 @@ for (const file of apiFiles) {
 const requiredFlows = [
   ["app/App.tsx", ["currentRole", "role-switcher", "canAccessModule"]],
   ["features/dashboard/DashboardPage.tsx", ["monitor-console", "gauge-ring", "alarm-board", "trend-board"]],
-  ["features/geo/GeoPage.tsx", ["createDraft", "selectedReference", "deleteTarget", "请输入 GEO 分析关键词", "geo-console", "geo-ring"]],
+  ["features/geo/GeoPage.tsx", ["createDraft", "selectedReference", "deleteTarget", "请输入 GEO 分析关键词", "geo-console", "geo-ring", "当前前端模式", "真实接口模式"]],
   ["features/creation/CreationPage.tsx", ["createBlankDraft", "regenerateDraft", "createPublishSchedule", "仅审核通过的内容可以创建发布排期", "creation-console", "creation-ring", "reviewRoles", "publishRoles"]],
   ["features/publish/PublishPage.tsx", ["openReceipts", "retryTask", "openRevokeConfirm", "请填写发布标题和正文", "publish-console", "publish-ring", "publishRoles"]],
   ["features/integration/IntegrationPage.tsx", ["submitCredential", "请输入新的授权凭据"]],

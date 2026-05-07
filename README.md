@@ -53,12 +53,21 @@ http://127.0.0.1:8088/api
 
 ```bash
 export VITE_API_BASE_URL=http://127.0.0.1:8088/api
+export VITE_OPERATOR_ACCOUNT=13677889001
 ```
 
 默认启用后端不可用时的本地模拟数据兜底。联调阶段如需强制暴露接口错误：
 
 ```bash
 export VITE_ENABLE_MOCK_FALLBACK=false
+```
+
+联调真实 DeepSeek 返回数据时，前端必须关闭本地兜底，否则后端未启动、DeepSeek Key 错误或接口异常会被本地数据掩盖。
+
+真实联调前端启动：
+
+```bash
+./scripts/frontend-real.sh
 ```
 
 前端回归检查：
@@ -167,6 +176,65 @@ export BEE_GEO_DB_PASSWORD=请替换为强密码
 
 ```bash
 export BEE_GEO_CREDENTIAL_SECRET=请替换为高强度随机密钥
+```
+
+如需启用 DeepSeek 真实模型调用：
+
+```bash
+cp .env.example .env.local
+```
+
+编辑 `.env.local`，替换真实密钥：
+
+```bash
+BEE_GEO_AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=请替换为真实密钥
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-pro
+VITE_ENABLE_MOCK_FALLBACK=false
+```
+
+DeepSeek 默认调用地址为：
+
+```text
+https://api.deepseek.com/chat/completions
+```
+
+如果之前已启动后端，修改 `.env.local` 或升级代码后必须重启后端，否则页面仍会访问旧进程。
+
+后端启动后可执行真实 DeepSeek 写入式联调检查：
+
+```bash
+./scripts/deepseek-smoke.sh
+```
+
+该脚本会创建 GEO 任务，并校验 DeepSeek 返回的问题、内容标题和分析说明均已持久化到 GEO 结果，且没有本地假链接。
+
+如需一键完成后端启动、健康等待、DeepSeek 写入式检查和前端真实模式构建：
+
+```bash
+./scripts/deepseek-runtime-smoke.sh
+```
+
+排查当前是否真正接入 AI：
+
+```bash
+./scripts/ai-diagnose.sh
+```
+
+常用开关：
+
+```bash
+export BEE_GEO_DEEPSEEK_RUNTIME_START_BACKEND=false # 使用已有后端
+export BEE_GEO_DEEPSEEK_RUNTIME_KEEP_BACKEND=true   # 验收后保留脚本启动的后端
+export BEE_GEO_DEEPSEEK_RUNTIME_BUILD_FRONTEND=false # 跳过前端构建
+export BEE_GEO_DEEPSEEK_RUNTIME_WAIT_SECONDS=120    # 调整后端等待时间
+```
+
+页面和运行态接口可通过以下地址确认当前后端实际启用的 AI Provider：
+
+```text
+http://127.0.0.1:8088/api/ai/provider
 ```
 
 如需启用自有站点真实 HTTP 发布适配器：

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.beegeo.common.ai.AiProvider;
+import com.beegeo.common.ai.GeoInsight;
 import com.beegeo.common.api.BusinessException;
 import com.beegeo.common.audit.AuditEventPublisher;
 import com.beegeo.common.persistence.BaseEntity;
@@ -51,7 +52,11 @@ class GeoApplicationServiceTest {
             setBaseField(task, "createdAt", LocalDateTime.of(2026, 4, 30, 17, 0));
             return task;
         });
-        when(aiProvider.generateGeoQuestions("企业协同平台")).thenReturn(List.of("问题一", "问题二"));
+        when(aiProvider.providerName()).thenReturn("DeepSeek");
+        when(aiProvider.generateGeoInsights("企业协同平台")).thenReturn(List.of(
+            new GeoInsight("问题一", "标题一", "模型生成说明一"),
+            new GeoInsight("问题二", "标题二", "模型生成说明二")
+        ));
         when(geoResultRepository.findByTaskId(eq(41L), any(Sort.class))).thenReturn(List.of(
             result(1L, 41L, "企业协同平台", "问题一"),
             result(2L, 41L, "企业协同平台", "问题二")
@@ -68,6 +73,10 @@ class GeoApplicationServiceTest {
         verify(geoResultRepository, org.mockito.Mockito.times(2)).save(resultCaptor.capture());
         assertEquals(41L, resultCaptor.getAllValues().get(0).getTaskId());
         assertEquals("问题一", resultCaptor.getAllValues().get(0).getQuestion());
+        assertEquals("标题一", resultCaptor.getAllValues().get(0).getAiTitle());
+        assertEquals("模型生成说明一", resultCaptor.getAllValues().get(0).getDescription());
+        assertEquals("DeepSeek", resultCaptor.getAllValues().get(0).getMedia());
+        assertEquals("", resultCaptor.getAllValues().get(0).getUrl());
         verify(auditEventPublisher).publish("geo", "createTask", "41", "system", true);
     }
 
@@ -127,9 +136,9 @@ class GeoApplicationServiceTest {
             taskId,
             keyword,
             question,
-            keyword + " GEO 内容机会分析",
-            "https://example.local/geo/" + taskId,
-            "自有站点",
+            question,
+            "",
+            "DeepSeek",
             "引用来源说明"
         );
         setBaseField(result, "id", id);

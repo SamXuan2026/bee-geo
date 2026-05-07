@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5178",
+    "dev:real": "VITE_ENABLE_MOCK_FALLBACK=false vite --host 127.0.0.1 --port 5178",
     "build": "tsc && vite build",
+    "build:real": "VITE_ENABLE_MOCK_FALLBACK=false tsc && VITE_ENABLE_MOCK_FALLBACK=false vite build",
     "page-smoke": "node scripts/page-smoke.mjs",
     "interaction-smoke": "node scripts/interaction-smoke.mjs",
     "browser-click-smoke": "node scripts/browser-click-smoke.mjs",

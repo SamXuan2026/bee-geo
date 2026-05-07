@@ -1,5 +1,5 @@
 import { creationItems, geoReferences, geoTasks } from "../../shared/mockData";
-import { apiGet, apiPost, withMockFallback, withMockFallbackFactory } from "../../shared/http";
+import { apiGet, apiPost, apiRuntimeMode, withMockFallback, withMockFallbackFactory } from "../../shared/http";
 import { recordLocalAudit } from "../../shared/localAudit";
 import { readLocalItems, upsertLocalItem, writeLocalItems } from "../../shared/localStore";
 import type { CreationItem, GeoReference, GeoTask } from "../../shared/types";
@@ -9,6 +9,27 @@ const GEO_REFERENCES_KEY = "bee-geo:fallback-geo-references";
 const CREATIONS_KEY = "bee-geo:fallback-creations";
 let fallbackTasks = readLocalItems<GeoTask>(GEO_TASKS_KEY, geoTasks);
 let fallbackReferences = readLocalItems<GeoReference>(GEO_REFERENCES_KEY, geoReferences);
+
+export interface AiProviderStatus {
+  providerName: string;
+  modelName: string;
+  remoteProvider: boolean;
+}
+
+export function getGeoRuntimeMode() {
+  return apiRuntimeMode();
+}
+
+export function getAiProviderStatus() {
+  return withMockFallback<AiProviderStatus>(
+    () => apiGet<AiProviderStatus>("/ai/provider"),
+    {
+      providerName: "前端本地兜底",
+      modelName: "local-fallback",
+      remoteProvider: false,
+    }
+  );
+}
 
 export function listGeoTasks() {
   fallbackTasks = readStoredGeoTasks();
@@ -28,7 +49,7 @@ export function createGeoTask(keyword: string) {
 export function listGeoReferences(taskId?: number) {
   fallbackReferences = readStoredGeoReferences();
   if (!taskId) {
-    return withMockFallback<GeoReference[]>(() => apiGet<GeoReference[]>("/geo/tasks/1/results"), fallbackReferences);
+    return withMockFallback<GeoReference[]>(() => Promise.resolve([]), fallbackReferences);
   }
   return withMockFallback<GeoReference[]>(
     async () => {
@@ -151,7 +172,7 @@ function createFallbackGeoTask(keyword: string) {
       aiTitle: `${keyword}私有化选型建议`,
       url: "https://example.local/articles/local-geo",
       media: "自有站点",
-      description: "本地模拟生成的 GEO 引用结果，用于前端无后端时演示完整流程。",
+      description: "本地兜底生成的 GEO 引用结果，仅用于后端不可用时演示完整流程。",
     },
     ...readStoredGeoReferences(),
   ];

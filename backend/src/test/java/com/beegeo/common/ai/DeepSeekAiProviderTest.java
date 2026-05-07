@@ -36,6 +36,49 @@ class DeepSeekAiProviderTest {
     }
 
     @Test
+    void shouldGenerateStructuredGeoInsights() {
+        DeepSeekAiProvider provider = new StubProvider("""
+            {"choices":[{"message":{"content":"{\\\"items\\\":[{\\\"question\\\":\\\"企业协同平台怎么私有化部署？\\\",\\\"aiTitle\\\":\\\"企业协同平台私有化部署指南\\\",\\\"description\\\":\\\"围绕私有化部署、权限审计和系统集成说明品牌内容缺口。\\\"}]}"}}]}
+            """, 200);
+
+        List<GeoInsight> insights = provider.generateGeoInsights("企业协同平台");
+
+        assertEquals(1, insights.size());
+        assertEquals("企业协同平台怎么私有化部署？", insights.get(0).question());
+        assertEquals("企业协同平台私有化部署指南", insights.get(0).aiTitle());
+        assertTrue(insights.get(0).description().contains("权限审计"));
+    }
+
+    @Test
+    void shouldKeepCompatibilityWithGeoInsightArray() {
+        DeepSeekAiProvider provider = new StubProvider("""
+            {"choices":[{"message":{"content":"[{\\\"question\\\":\\\"问题\\\",\\\"aiTitle\\\":\\\"标题\\\",\\\"description\\\":\\\"说明\\\"}]"}}]}
+            """, 200);
+
+        List<GeoInsight> insights = provider.generateGeoInsights("企业协同平台");
+
+        assertEquals(1, insights.size());
+        assertEquals("标题", insights.get(0).aiTitle());
+    }
+
+    @Test
+    void shouldBuildOfficialDeepSeekEndpoint() {
+        assertEquals("https://api.deepseek.com/chat/completions", DeepSeekAiProvider.buildEndpoint("https://api.deepseek.com"));
+        assertEquals("https://api.deepseek.com/chat/completions", DeepSeekAiProvider.buildEndpoint("https://api.deepseek.com/"));
+        assertEquals("https://api.deepseek.com/v1/chat/completions", DeepSeekAiProvider.buildEndpoint("https://api.deepseek.com/v1"));
+        assertEquals("https://proxy.local/chat/completions", DeepSeekAiProvider.buildEndpoint("https://proxy.local/chat/completions"));
+    }
+
+    @Test
+    void shouldRejectMalformedStructuredGeoInsights() {
+        DeepSeekAiProvider provider = new StubProvider("""
+            {"choices":[{"message":{"content":"不是JSON数组"}}]}
+            """, 200);
+
+        assertThrows(AiProviderException.class, () -> provider.generateGeoInsights("企业协同平台"));
+    }
+
+    @Test
     void shouldGeneratePersona() {
         DeepSeekAiProvider provider = new StubProvider("""
             {"choices":[{"message":{"content":"专业、克制、关注业务价值和风险提示的企业内容顾问。"}}]}
@@ -116,6 +159,15 @@ class DeepSeekAiProviderTest {
 
         @Override
         String chat(String systemPrompt, String userPrompt) {
+            return stubChat();
+        }
+
+        @Override
+        String chat(String systemPrompt, String userPrompt, boolean jsonOutput) {
+            return stubChat();
+        }
+
+        private String stubChat() {
             if (statusCode != 200) {
                 throw new AiProviderException("DeepSeek API 调用失败，状态码：" + statusCode);
             }

@@ -42,8 +42,15 @@ class BackendApiIntegrationTest {
         assertSuccessfulGet("/api/personas").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/users").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/users/roles").andExpect(jsonPath("$.data.length()", greaterThan(0)));
+        assertSuccessfulGet("/api/ai/provider")
+            .andExpect(jsonPath("$.data.providerName").value("本地兜底"))
+            .andExpect(jsonPath("$.data.modelName").value("local-mock"))
+            .andExpect(jsonPath("$.data.remoteProvider").value(false));
+        long geoTaskId = postAndReadDataId("/api/geo/tasks", """
+            {"keyword":"核心接口只读验收"}
+            """);
         assertSuccessfulGet("/api/geo/tasks").andExpect(jsonPath("$.data.length()", greaterThan(0)));
-        assertSuccessfulGet("/api/geo/tasks/1/results").andExpect(jsonPath("$.data.length()", greaterThan(0)));
+        assertSuccessfulGet("/api/geo/tasks/" + geoTaskId + "/results").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/creations").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/publish/tasks").andExpect(jsonPath("$.data.length()", greaterThan(0)));
         assertSuccessfulGet("/api/publish/tasks/accounts").andExpect(jsonPath("$.data.length()", greaterThan(0)));

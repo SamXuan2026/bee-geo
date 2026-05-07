@@ -1,6 +1,7 @@
 package com.beegeo.geo.application;
 
 import com.beegeo.common.ai.AiProvider;
+import com.beegeo.common.ai.GeoInsight;
 import com.beegeo.common.api.BusinessException;
 import com.beegeo.common.audit.AuditEventPublisher;
 import com.beegeo.creation.application.CreationApplicationService;
@@ -61,11 +62,11 @@ public class GeoApplicationService {
     @Transactional
     public GeoTaskView createTask(String keyword) {
         GeoTaskEntity task = geoTaskRepository.save(new GeoTaskEntity(keyword.trim()));
-        List<String> questions = aiProvider.generateGeoQuestions(task.getKeyword());
-        for (int index = 0; index < questions.size(); index++) {
-            geoResultRepository.save(toResult(task, questions.get(index), index));
+        List<GeoInsight> insights = aiProvider.generateGeoInsights(task.getKeyword());
+        for (GeoInsight insight : insights) {
+            geoResultRepository.save(toResult(task, insight));
         }
-        task.markCompleted(questions.size());
+        task.markCompleted(insights.size());
         auditEventPublisher.publish("geo", "createTask", String.valueOf(task.getId()), "system", true);
         return toTaskView(task);
     }
@@ -91,12 +92,20 @@ public class GeoApplicationService {
             .orElseThrow(() -> new BusinessException("GEO_TASK_NOT_FOUND", "GEO 任务不存在"));
     }
 
-    private GeoResultEntity toResult(GeoTaskEntity task, String question, int index) {
-        String media = index % 2 == 0 ? "自有站点" : "免费媒体";
-        String title = task.getKeyword() + " GEO 内容机会分析 " + (index + 1);
-        String url = "https://example.local/geo/" + task.getId() + "/" + (index + 1);
-        String description = "围绕「" + question + "」沉淀引用来源、品牌曝光机会和内容优化方向。";
-        return new GeoResultEntity(task.getId(), task.getKeyword(), question, title, url, media, description);
+    private GeoResultEntity toResult(GeoTaskEntity task, GeoInsight insight) {
+        String providerName = aiProvider.providerName();
+        String media = providerName;
+        String title = limit(insight.aiTitle(), 180);
+        String url = "";
+        String description = limit(insight.description(), 1000);
+        return new GeoResultEntity(task.getId(), task.getKeyword(), insight.question(), title, url, media, description);
+    }
+
+    private String limit(String value, int maxLength) {
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     private GeoTaskView toTaskView(GeoTaskEntity entity) {
