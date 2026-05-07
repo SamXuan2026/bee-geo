@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
 export function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>("dashboard");
   const [currentRole, setCurrentRole] = useState<UserRoleCode>("SUPER_ADMIN");
+  const [focusCreationId, setFocusCreationId] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const activeItem = useMemo(
     () => navItems.find((item) => item.key === activeModule) ?? navItems[0],
@@ -56,8 +57,13 @@ export function App() {
     if (activeModule === "keywords") return <KeywordsPage currentRole={currentRole} />;
     if (activeModule === "knowledge") return <KnowledgePage currentRole={currentRole} />;
     if (activeModule === "assets") return <AssetsPage currentRole={currentRole} />;
-    if (activeModule === "geo") return <GeoPage currentRole={currentRole} onCreateDraft={() => setActiveModule("creation")} />;
-    if (activeModule === "creation") return <CreationPage currentRole={currentRole} onOpenPublish={() => setActiveModule("publish")} />;
+    if (activeModule === "geo") {
+      return <GeoPage currentRole={currentRole} onCreateDraft={(creationId) => {
+        setFocusCreationId(creationId);
+        setActiveModule("creation");
+      }} />;
+    }
+    if (activeModule === "creation") return <CreationPage currentRole={currentRole} focusCreationId={focusCreationId} onOpenPublish={() => setActiveModule("publish")} />;
     if (activeModule === "persona") return <PersonaPage currentRole={currentRole} />;
     if (activeModule === "publish") return <PublishPage currentRole={currentRole} />;
     if (activeModule === "integration") return <IntegrationPage currentRole={currentRole} />;

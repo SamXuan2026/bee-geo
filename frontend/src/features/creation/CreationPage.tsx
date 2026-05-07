@@ -8,6 +8,7 @@ import type { CreationItem } from "./model";
 
 interface CreationPageProps {
   currentRole: UserRoleCode;
+  focusCreationId?: number | null;
   onOpenPublish: () => void;
 }
 
@@ -17,7 +18,7 @@ const creationSignalItems = [
   { label: "待处理", value: "9", unit: "篇", tone: "amber" },
 ];
 
-export function CreationPage({ currentRole, onOpenPublish }: CreationPageProps) {
+export function CreationPage({ currentRole, focusCreationId, onOpenPublish }: CreationPageProps) {
   const [items, setItems] = useState<CreationItem[]>([]);
   const [editing, setEditing] = useState<CreationItem | null>(null);
   const [keyword, setKeyword] = useState("");
@@ -33,13 +34,17 @@ export function CreationPage({ currentRole, onOpenPublish }: CreationPageProps) 
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [focusCreationId]);
 
   async function reload() {
     try {
       const data = await listCreations();
       setItems(data);
-      setEditing((current) => current ?? data[0] ?? null);
+      const focused = focusCreationId ? data.find((item) => item.id === focusCreationId) : undefined;
+      setEditing(focused ?? data[0] ?? null);
+      if (focused) {
+        setNotice("已打开刚生成的 AI 草稿");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "读取创作列表失败");
     }

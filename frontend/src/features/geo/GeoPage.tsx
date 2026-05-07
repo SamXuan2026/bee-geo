@@ -8,7 +8,7 @@ import type { GeoReference, GeoTask } from "./model";
 
 interface GeoPageProps {
   currentRole: UserRoleCode;
-  onCreateDraft: () => void;
+  onCreateDraft: (creationId: number) => void;
 }
 
 const geoSourceItems = [
@@ -40,6 +40,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingDraft, setIsCreatingDraft] = useState(false);
   const canWrite = hasAnyRole(currentRole, contentWriteRoles);
   const deniedTitle = permissionTitle(contentWriteRoles);
 
@@ -142,19 +143,27 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       setNotice(deniedTitle);
       return;
     }
-    if (tasks.length === 0) {
-      setError("请先创建 GEO 分析任务");
+    if (isCreatingDraft) {
       return;
     }
-    const taskId = tasks[0]?.taskId ?? 1;
+    const completedTask = firstCompletedTask(tasks);
+    if (!completedTask) {
+      setError("请先等待 GEO 分析任务完成后再开始仿写");
+      return;
+    }
+    const taskId = completedTask.taskId ?? completedTask.id;
+    setIsCreatingDraft(true);
     setError("");
-    setNotice("");
+    setNotice("正在基于 GEO 结果生成 AI 草稿");
     try {
-      await createDraftFromGeo(taskId);
+      const draft = await createDraftFromGeo(taskId);
       setNotice("已基于 GEO 结果创建 AI 草稿");
-      onCreateDraft();
+      onCreateDraft(draft.id);
     } catch (err) {
+      setNotice("");
       setError(formatError(err, "创建 AI 草稿失败"));
+    } finally {
+      setIsCreatingDraft(false);
     }
   }
 
@@ -169,7 +178,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
 
   return (
     <div className="page-stack">
-      <PageHeader title="GEO 分析" description="输入关键词调用后端 AI Provider，生成 GEO 研究问题和品牌曝光分析。" actionText={isSubmitting ? "分析中..." : "创建分析任务"} onAction={submitTask} actionDisabled={!canWrite || isSubmitting} actionTitle={canWrite ? undefined : deniedTitle} />
+      <PageHeader title="GEO 分析" description="输入关键词调用后端 AI Provider，生成 GEO 研究问题和品牌曝光分析。" actionText={isSubmitting ? "分析中..." : "创建分析任务"} onAction={submitTask} actionDisabled={!canWrite || isSubmitting || isCreatingDraft} actionTitle={canWrite ? undefined : deniedTitle} />
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="success-banner">{notice}</div> : null}
       <div className={runtimeMode.mockFallbackEnabled ? "warning-banner" : "success-banner"}>
@@ -181,7 +190,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
           <strong>{tasks[0]?.keyword ?? keyword}</strong>
           <p>已生成 {tasks.length} 个 GEO 研究问题；当前模型来源：{aiProviderStatus ? `${aiProviderStatus.providerName} / ${aiProviderStatus.modelName}` : "读取中"}。</p>
         </div>
-        <button className="primary-button" type="button" onClick={createDraft} disabled={!canWrite || isSubmitting} title={canWrite ? undefined : deniedTitle}>基于结果开始仿写</button>
+        <button className="primary-button" type="button" onClick={createDraft} disabled={!canWrite || isSubmitting || isCreatingDraft} title={canWrite ? undefined : deniedTitle}>{isCreatingDraft ? "生成草稿中..." : "基于结果开始仿写"}</button>
       </div>
       <section className="geo-console" aria-label="GEO 监控面板">
         <div className="geo-signal-board">
@@ -340,6 +349,21 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
 
 function delay(timeoutMs: number) {
   return new Promise((resolve) => window.setTimeout(resolve, timeoutMs));
+}
+
+function firstCompletedTask(tasks: GeoTask[]) {
+  const seenTaskIds = new Set<number>();
+  for (const task of tasks) {
+    const taskId = task.taskId ?? task.id;
+    if (seenTaskIds.has(taskId)) {
+      continue;
+    }
+    seenTaskIds.add(taskId);
+    if (task.status === "已完成") {
+      return task;
+    }
+  }
+  return null;
 }
 
 function formatError(error: unknown, fallback: string) {
