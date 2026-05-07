@@ -40,6 +40,13 @@ export function updateCreation(id: number, payload: CreationUpdatePayload) {
   );
 }
 
+export function generateCreationDraft(payload: AiCreationPayload) {
+  return withMockFallbackFactory(
+    () => apiPost<CreationResponse>("/creations/generate-draft", payload).then(toItem),
+    () => generateFallbackDraft(payload)
+  );
+}
+
 export function scheduleCreationPublish(id: number, payload: CreationPublishPayload) {
   return withMockFallbackFactory(
     () => apiPost<PublishTask>(`/creations/${id}/schedule-publish`, payload),
@@ -60,6 +67,15 @@ export interface CreationPublishPayload {
   accountId: string;
   scheduledAt?: string;
   maxRetryCount?: number;
+}
+
+export interface AiCreationPayload {
+  topic: string;
+  keywordIds: number[];
+  knowledgeIds: number[];
+  personaName?: string;
+  brand?: string;
+  platform?: string;
 }
 
 interface CreationResponse {
@@ -123,6 +139,23 @@ function updateFallbackCreation(id: number, payload: CreationUpdatePayload) {
   writeLocalItems(CREATIONS_KEY, fallbackCreations);
   recordLocalAudit("AI 创作", "保存草稿", String(id), true, `/api/creations/${id}`);
   return nextItem;
+}
+
+function generateFallbackDraft(payload: AiCreationPayload) {
+  const item: CreationItem = {
+    id: Date.now(),
+    title: payload.topic,
+    brand: payload.brand?.trim() || "BeeWorks",
+    platform: payload.platform?.trim() || "自有站点",
+    summary: `基于 ${payload.keywordIds.length} 个关键词和 ${payload.knowledgeIds.length} 条知识库材料生成的本地草稿。`,
+    body: `标题：${payload.topic}\n\n摘要：基于已选关键词和知识库材料生成的内容草稿。\n\n正文：请围绕企业私有化、权限审计、知识复用和内容发布闭环继续完善。`,
+    publishAt: "未设置",
+    status: "DRAFT",
+  };
+  fallbackCreations = upsertLocalItem(readStoredCreations(), item);
+  writeLocalItems(CREATIONS_KEY, fallbackCreations);
+  recordLocalAudit("AI 创作", "知识库生成草稿", String(item.id), true, "/api/creations/generate-draft");
+  return item;
 }
 
 function scheduleFallbackCreation(id: number, payload: CreationPublishPayload): PublishTask {

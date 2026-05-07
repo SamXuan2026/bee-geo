@@ -3,6 +3,7 @@ package com.beegeo.creation.controller;
 import com.beegeo.auth.domain.UserRole;
 import com.beegeo.common.api.ApiResponse;
 import com.beegeo.common.security.RequireRole;
+import com.beegeo.creation.application.AiCreationCommand;
 import com.beegeo.creation.application.CreationApplicationService;
 import com.beegeo.creation.application.CreationPublishCommand;
 import com.beegeo.creation.application.CreationUpdateCommand;
@@ -35,6 +36,19 @@ public class CreationController {
     @GetMapping
     public ApiResponse<List<CreationView>> list() {
         return ApiResponse.ok(creationApplicationService.list());
+    }
+
+    @PostMapping("/generate-draft")
+    @RequireRole({UserRole.SUPER_ADMIN, UserRole.CONTENT_ADMIN})
+    public ApiResponse<CreationView> generateDraft(@Valid @RequestBody AiCreationRequest request) {
+        return ApiResponse.ok(creationApplicationService.generateDraft(new AiCreationCommand(
+            request.topic(),
+            request.keywordIds(),
+            request.knowledgeIds(),
+            request.personaName(),
+            request.brand(),
+            request.platform()
+        )));
     }
 
     @PutMapping("/{id}")
@@ -84,6 +98,16 @@ public class CreationController {
         @NotBlank @Size(max = 80) String platform,
         @Size(max = 500) String summary,
         @NotBlank @Size(max = 8000) String body
+    ) {
+    }
+
+    public record AiCreationRequest(
+        @NotBlank @Size(max = 180) String topic,
+        @Size(max = 20) List<Long> keywordIds,
+        @Size(max = 20) List<Long> knowledgeIds,
+        @Size(max = 80) String personaName,
+        @Size(max = 80) String brand,
+        @Size(max = 80) String platform
     ) {
     }
 

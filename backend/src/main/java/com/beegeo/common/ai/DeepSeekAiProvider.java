@@ -126,6 +126,18 @@ public class DeepSeekAiProvider implements AiProvider {
     }
 
     @Override
+    public String generateArticleWithContext(String topic, String personaName, List<String> keywords, List<String> knowledgeSnippets) {
+        String systemPrompt = "你是" + personaName + "。请基于用户给定的关键词和知识库材料，创作一篇可直接进入企业内容审核流程的文章草稿。"
+            + "要求：必须优先使用知识库材料，不得编造公司事实；包含标题、摘要、正文、行动建议；正文结构清晰；控制在1200字以内。"
+            + "直接输出文章内容，不要寒暄，不要说明你已完成创作。第一行必须是“标题：”开头。";
+        String userPrompt = "创作主题：" + topic
+            + "\n关键词：\n- " + String.join("\n- ", keywords)
+            + "\n知识库材料：\n" + String.join("\n\n", knowledgeSnippets);
+
+        return chat(systemPrompt, userPrompt);
+    }
+
+    @Override
     public String generatePersona(String sourceText) {
         String systemPrompt = "你是AI人设分析专家。根据提供的材料，提炼出一个简洁的AI内容创作人设描述，"
             + "包含：角色定位、表达重心、核心视角、情感温度。用一段话描述，不超过100字。";

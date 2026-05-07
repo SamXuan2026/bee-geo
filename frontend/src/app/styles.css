@@ -605,6 +605,17 @@ textarea {
   height: 16px;
 }
 
+.choice-list {
+  display: grid;
+  gap: 8px;
+  max-height: 168px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 8px;
+  background: rgba(248, 253, 254, 0.72);
+}
+
 .error-banner {
   border: 1px solid rgba(227, 72, 99, 0.24);
   border-radius: 8px;

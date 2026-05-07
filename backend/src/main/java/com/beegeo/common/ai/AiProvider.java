@@ -30,5 +30,11 @@ public interface AiProvider {
 
     String generateArticle(String keyword, String personaName);
 
+    default String generateArticleWithContext(String topic, String personaName, List<String> keywords, List<String> knowledgeSnippets) {
+        String context = String.join("\n", knowledgeSnippets);
+        String keywordText = String.join("、", keywords);
+        return generateArticle(topic + "\n关键词：" + keywordText + "\n知识库材料：" + context, personaName);
+    }
+
     String generatePersona(String sourceText);
 }

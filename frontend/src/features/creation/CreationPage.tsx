@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { contentWriteRoles, hasAnyRole, permissionTitle, publishRoles, reviewRoles } from "../../shared/permissions";
 import { contentStatusText } from "../../shared/statusMachine";
-import type { UserRoleCode } from "../../shared/types";
+import type { KeywordItem, KnowledgeItem, UserRoleCode } from "../../shared/types";
 import { PageHeader, Panel, StatusBadge, Toolbar } from "../../shared/ui";
-import { approveCreation, listCreations, scheduleCreationPublish, submitCreationReview, updateCreation } from "./api";
+import { listKeywords } from "../keywords/api";
+import { listKnowledgeItems } from "../knowledge/api";
+import { approveCreation, generateCreationDraft, listCreations, scheduleCreationPublish, submitCreationReview, updateCreation } from "./api";
 import type { CreationItem } from "./model";
 
 interface CreationPageProps {
@@ -23,6 +25,12 @@ export function CreationPage({ currentRole, focusCreationId, onOpenPublish }: Cr
   const [editing, setEditing] = useState<CreationItem | null>(null);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [sourceKeywords, setSourceKeywords] = useState<KeywordItem[]>([]);
+  const [sourceKnowledge, setSourceKnowledge] = useState<KnowledgeItem[]>([]);
+  const [draftTopic, setDraftTopic] = useState("企业协同平台内容创作");
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<number[]>([]);
+  const [selectedKnowledgeIds, setSelectedKnowledgeIds] = useState<number[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const canWrite = hasAnyRole(currentRole, contentWriteRoles);
@@ -34,7 +42,22 @@ export function CreationPage({ currentRole, focusCreationId, onOpenPublish }: Cr
 
   useEffect(() => {
     reload();
+    loadCreationSources();
   }, [focusCreationId]);
+
+  async function loadCreationSources() {
+    try {
+      const [keywords, knowledge] = await Promise.all([listKeywords(), listKnowledgeItems()]);
+      const enabledKeywords = keywords.filter((item) => item.enabled !== false);
+      const enabledKnowledge = knowledge.filter((item) => item.enabled !== false);
+      setSourceKeywords(enabledKeywords);
+      setSourceKnowledge(enabledKnowledge);
+      setSelectedKeywordIds((current) => current.length > 0 ? current : enabledKeywords.slice(0, 3).map((item) => item.id));
+      setSelectedKnowledgeIds((current) => current.length > 0 ? current : enabledKnowledge.slice(0, 3).map((item) => item.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "读取关键词和知识库失败");
+    }
+  }
 
   async function reload() {
     try {
@@ -76,6 +99,46 @@ export function CreationPage({ currentRole, focusCreationId, onOpenPublish }: Cr
     setEditing(draft);
     setError("");
     setNotice("已创建本地草稿，请补充内容后保存");
+  }
+
+  async function generateFromKnowledge() {
+    if (!canWrite) {
+      setError(contentDeniedTitle);
+      return;
+    }
+    if (!draftTopic.trim()) {
+      setError("请输入创作主题");
+      return;
+    }
+    if (selectedKeywordIds.length === 0) {
+      setError("请至少选择一个关键词");
+      return;
+    }
+    if (selectedKnowledgeIds.length === 0) {
+      setError("请至少选择一条知识库材料");
+      return;
+    }
+    setIsGenerating(true);
+    setError("");
+    setNotice("正在基于关键词和知识库调用 AI 生成草稿");
+    try {
+      const draft = await generateCreationDraft({
+        topic: draftTopic,
+        keywordIds: selectedKeywordIds,
+        knowledgeIds: selectedKnowledgeIds,
+        personaName: "品牌顾问",
+        brand: "BeeWorks",
+        platform: "自有站点",
+      });
+      setEditing(draft);
+      setNotice("已基于关键词和知识库生成 AI 草稿");
+      await reload();
+    } catch (err) {
+      setNotice("");
+      setError(err instanceof Error ? err.message : "AI 生成草稿失败");
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   function regenerateDraft() {
@@ -226,6 +289,41 @@ export function CreationPage({ currentRole, focusCreationId, onOpenPublish }: Cr
       <PageHeader title="AI 创作" description="围绕 GEO 结果、关键词和 AI 人设生成内容，并进入审核发布流程。" actionText="添加新的创作" onAction={createBlankDraft} actionDisabled={!canWrite} actionTitle={canWrite ? undefined : contentDeniedTitle} />
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="success-banner">{notice}</div> : null}
+      <Panel title="基于知识库和关键词生成">
+        <div className="form-grid two-fields">
+          <label className="form-field full-width">
+            <span>创作主题</span>
+            <input value={draftTopic} onChange={(event) => setDraftTopic(event.target.value)} disabled={isGenerating} placeholder="请输入本次 AI 创作主题" />
+          </label>
+          <div className="form-field">
+            <span>关键词</span>
+            <div className="choice-list">
+              {sourceKeywords.map((item) => (
+                <label className="inline-check" key={item.id}>
+                  <input checked={selectedKeywordIds.includes(item.id)} disabled={isGenerating} type="checkbox" onChange={() => toggleNumber(selectedKeywordIds, item.id, setSelectedKeywordIds)} />
+                  <span>{item.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="form-field">
+            <span>知识库材料</span>
+            <div className="choice-list">
+              {sourceKnowledge.map((item) => (
+                <label className="inline-check" key={item.id}>
+                  <input checked={selectedKnowledgeIds.includes(item.id)} disabled={isGenerating} type="checkbox" onChange={() => toggleNumber(selectedKnowledgeIds, item.id, setSelectedKnowledgeIds)} />
+                  <span>{item.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="editor-toolbar">
+          <button className="primary-button" type="button" onClick={generateFromKnowledge} disabled={!canWrite || isGenerating} title={canWrite ? undefined : contentDeniedTitle}>
+            {isGenerating ? "AI 生成中..." : "基于知识库和关键词生成草稿"}
+          </button>
+        </div>
+      </Panel>
       <section className="creation-console" aria-label="创作监控面板">
         <div className="creation-signal-board">
           <div className="monitor-tabs" aria-label="创作阶段">
@@ -359,4 +457,12 @@ function nextLocalDateTime() {
   const hour = String(date.getHours()).padStart(2, "0");
   const minute = String(date.getMinutes()).padStart(2, "0");
   return `${year}-${month}-${day}T${hour}:${minute}:00`;
+}
+
+function toggleNumber(values: number[], target: number, onChange: (nextValues: number[]) => void) {
+  if (values.includes(target)) {
+    onChange(values.filter((value) => value !== target));
+    return;
+  }
+  onChange([...values, target]);
 }

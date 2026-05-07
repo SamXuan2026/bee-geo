@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.beegeo.common.ai.AiProvider;
 import com.beegeo.common.api.BusinessException;
 import com.beegeo.common.audit.AuditEventPublisher;
 import com.beegeo.common.persistence.BaseEntity;
@@ -14,12 +15,17 @@ import com.beegeo.creation.domain.CreationEntity;
 import com.beegeo.creation.domain.CreationStatus;
 import com.beegeo.creation.domain.CreationView;
 import com.beegeo.creation.repository.CreationRepository;
+import com.beegeo.keyword.domain.KeywordEntity;
+import com.beegeo.keyword.repository.KeywordRepository;
+import com.beegeo.knowledge.domain.KnowledgeEntity;
+import com.beegeo.knowledge.repository.KnowledgeRepository;
 import com.beegeo.publish.application.PublishTaskApplicationService;
 import com.beegeo.publish.domain.PublishStatus;
 import com.beegeo.publish.domain.PublishTaskCommand;
 import com.beegeo.publish.domain.PublishTaskView;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,10 +34,16 @@ class CreationApplicationServiceTest {
     private final CreationRepository creationRepository = mock(CreationRepository.class);
     private final AuditEventPublisher auditEventPublisher = mock(AuditEventPublisher.class);
     private final PublishTaskApplicationService publishTaskApplicationService = mock(PublishTaskApplicationService.class);
+    private final AiProvider aiProvider = mock(AiProvider.class);
+    private final KeywordRepository keywordRepository = mock(KeywordRepository.class);
+    private final KnowledgeRepository knowledgeRepository = mock(KnowledgeRepository.class);
     private final CreationApplicationService service = new CreationApplicationService(
         creationRepository,
         auditEventPublisher,
-        publishTaskApplicationService
+        publishTaskApplicationService,
+        aiProvider,
+        keywordRepository,
+        knowledgeRepository
     );
 
     @Test
@@ -48,6 +60,36 @@ class CreationApplicationServiceTest {
         assertEquals(5L, view.geoTaskId());
         assertEquals(CreationStatus.DRAFT, view.status());
         verify(auditEventPublisher).publish("creation", "createDraft", "11", "system", true);
+    }
+
+    @Test
+    void shouldGenerateDraftFromKeywordsAndKnowledge() {
+        KeywordEntity keyword = new KeywordEntity("企业协同平台", "品牌核心词", "协同办公核心词", true);
+        setBaseField(keyword, "id", 1L);
+        KnowledgeEntity knowledge = new KnowledgeEntity("产品手册", "md", "品牌资料", "私有化部署、权限审计、知识库复用。", true);
+        setBaseField(knowledge, "id", 2L);
+        when(keywordRepository.findAllById(List.of(1L))).thenReturn(List.of(keyword));
+        when(knowledgeRepository.findAllById(List.of(2L))).thenReturn(List.of(knowledge));
+        when(aiProvider.generateArticleWithContext(any(), any(), any(), any())).thenReturn("标题：企业协同平台私有化方案\n\n正文");
+        when(creationRepository.save(any(CreationEntity.class))).thenAnswer(invocation -> {
+            CreationEntity entity = invocation.getArgument(0);
+            setBaseField(entity, "id", 12L);
+            return entity;
+        });
+
+        CreationView view = service.generateDraft(new AiCreationCommand(
+            "企业协同平台私有化方案",
+            List.of(1L),
+            List.of(2L),
+            "品牌顾问",
+            "BeeWorks",
+            "自有站点"
+        ));
+
+        assertEquals(12L, view.id());
+        assertEquals("企业协同平台私有化方案", view.title());
+        assertEquals(CreationStatus.DRAFT, view.status());
+        verify(auditEventPublisher).publish("creation", "generateDraft", "12", "system", true);
     }
 
     @Test
@@ -110,7 +152,7 @@ class CreationApplicationServiceTest {
         return entity;
     }
 
-    private void setBaseField(CreationEntity entity, String fieldName, Object value) {
+    private void setBaseField(Object entity, String fieldName, Object value) {
         try {
             Field field = BaseEntity.class.getDeclaredField(fieldName);
             field.setAccessible(true);

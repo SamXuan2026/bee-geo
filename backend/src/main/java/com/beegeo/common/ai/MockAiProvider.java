@@ -33,6 +33,13 @@ public class MockAiProvider implements AiProvider {
     }
 
     @Override
+    public String generateArticleWithContext(String topic, String personaName, List<String> keywords, List<String> knowledgeSnippets) {
+        return "标题：" + topic + "内容草稿\n\n摘要：基于关键词「" + String.join("、", keywords) + "」和知识库材料生成。\n\n正文："
+            + String.join("；", knowledgeSnippets)
+            + "\n\n行动建议：结合企业私有化、安全审计和内容运营闭环持续优化。";
+    }
+
+    @Override
     public String generatePersona(String sourceText) {
         return "专业、克制、关注业务价值和风险提示的企业内容顾问。";
     }
