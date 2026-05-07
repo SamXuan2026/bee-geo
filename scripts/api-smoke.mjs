@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
 const baseUrl = (process.env.BEE_GEO_API_BASE || 'http://127.0.0.1:8088').replace(/\/$/, '');
 const operatorAccount = process.env.BEE_GEO_SMOKE_OPERATOR || '13677889001';
-const execFileAsync = promisify(execFile);
+const requestTimeoutMs = Number(process.env.BEE_GEO_SMOKE_TIMEOUT_MS || 8000);
 
 const checks = [];
 
@@ -17,26 +14,26 @@ function assertResult(condition, message) {
 
 async function request(path) {
   const url = `${baseUrl}${path}`;
-  let stdout;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  let response;
   try {
-    const result = await execFileAsync('curl', [
-      '-sS',
-      '-H',
-      'Accept: application/json',
-      '-H',
-      `X-Bee-Account: ${operatorAccount}`,
-      '-w',
-      '\n%{http_code}',
-      url
-    ], { maxBuffer: 1024 * 1024 * 4 });
-    stdout = result.stdout;
+    response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'X-Bee-Account': operatorAccount
+      },
+      signal: controller.signal
+    });
   } catch (error) {
-    const detail = error.stderr || error.message;
+    const detail = error.name === 'AbortError' ? `请求超时 ${requestTimeoutMs}ms` : error.message;
     throw new Error(`接口连接失败：${path}，请确认后端已启动且地址可访问。详情：${detail}`);
+  } finally {
+    clearTimeout(timeout);
   }
-  const separatorIndex = stdout.lastIndexOf('\n');
-  const text = stdout.slice(0, separatorIndex);
-  const status = Number(stdout.slice(separatorIndex + 1).trim());
+
+  const status = response.status;
+  const text = await response.text();
   let payload;
   try {
     payload = JSON.parse(text);
