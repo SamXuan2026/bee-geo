@@ -37,6 +37,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
   const [aiProviderStatus, setAiProviderStatus] = useState<AiProviderStatus | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const canWrite = hasAnyRole(currentRole, contentWriteRoles);
   const deniedTitle = permissionTitle(contentWriteRoles);
 
@@ -49,7 +50,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
     try {
       setAiProviderStatus(await getAiProviderStatus());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "读取 AI Provider 状态失败");
+      setError(formatError(err, "读取 AI Provider 状态失败"));
     }
   }
 
@@ -59,7 +60,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       setTasks(nextTasks);
       setReferences(await listGeoReferences(nextTasks[0]?.taskId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "读取 GEO 数据失败");
+      setError(formatError(err, "读取 GEO 数据失败"));
     }
   }
 
@@ -72,15 +73,22 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       setError("请输入 GEO 分析关键词");
       return;
     }
+    if (isSubmitting) {
+      return;
+    }
+    setIsSubmitting(true);
     setError("");
-    setNotice("");
+    setNotice("真实 AI 分析中，请勿重复点击，通常需要几十秒");
     try {
       const task = await createGeoTask(keyword);
       setNotice("GEO 分析任务已完成");
       await reload();
       setReferences(await listGeoReferences(task.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建 GEO 任务失败");
+      setNotice("");
+      setError(formatError(err, "创建 GEO 任务失败"));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -90,7 +98,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
     try {
       setReferences(await listGeoReferences(task.taskId ?? task.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "读取 GEO 引用失败");
+      setError(formatError(err, "读取 GEO 引用失败"));
     }
   }
 
@@ -124,7 +132,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       setNotice("已基于 GEO 结果创建 AI 草稿");
       onCreateDraft();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建 AI 草稿失败");
+      setError(formatError(err, "创建 AI 草稿失败"));
     }
   }
 
@@ -138,7 +146,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
 
   return (
     <div className="page-stack">
-      <PageHeader title="GEO 分析" description="输入关键词调用后端 AI Provider，生成 GEO 研究问题和品牌曝光分析。" actionText="创建分析任务" onAction={submitTask} actionDisabled={!canWrite} actionTitle={canWrite ? undefined : deniedTitle} />
+      <PageHeader title="GEO 分析" description="输入关键词调用后端 AI Provider，生成 GEO 研究问题和品牌曝光分析。" actionText={isSubmitting ? "分析中..." : "创建分析任务"} onAction={submitTask} actionDisabled={!canWrite || isSubmitting} actionTitle={canWrite ? undefined : deniedTitle} />
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="success-banner">{notice}</div> : null}
       <div className={runtimeMode.mockFallbackEnabled ? "warning-banner" : "success-banner"}>
@@ -150,7 +158,7 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
           <strong>{tasks[0]?.keyword ?? keyword}</strong>
           <p>已生成 {tasks.length} 个 GEO 研究问题；当前模型来源：{aiProviderStatus ? `${aiProviderStatus.providerName} / ${aiProviderStatus.modelName}` : "读取中"}。</p>
         </div>
-        <button className="primary-button" type="button" onClick={createDraft} disabled={!canWrite} title={canWrite ? undefined : deniedTitle}>基于结果开始仿写</button>
+        <button className="primary-button" type="button" onClick={createDraft} disabled={!canWrite || isSubmitting} title={canWrite ? undefined : deniedTitle}>基于结果开始仿写</button>
       </div>
       <section className="geo-console" aria-label="GEO 监控面板">
         <div className="geo-signal-board">
@@ -212,8 +220,8 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       </section>
       <Panel title="GEO 研究问题">
         <Toolbar>
-          <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="请输入关键词" />
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="请输入关键词" disabled={isSubmitting} />
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} disabled={isSubmitting}>
             <option value="">全部状态</option>
             <option value="已完成">已完成</option>
             <option value="分析中">分析中</option>
@@ -232,8 +240,8 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
                 <td>{task.createdAt}</td>
                 <td>
                   <div className="table-actions">
-                    <button className="link-button" type="button" onClick={() => openTask(task)}>查看</button>
-                    <button className="danger-link" type="button" onClick={() => setDeleteTarget(task)} disabled={!canWrite} title={canWrite ? undefined : deniedTitle}>删除</button>
+                    <button className="link-button" type="button" onClick={() => openTask(task)} disabled={isSubmitting}>查看</button>
+                    <button className="danger-link" type="button" onClick={() => setDeleteTarget(task)} disabled={!canWrite || isSubmitting} title={canWrite ? undefined : deniedTitle}>删除</button>
                   </div>
                 </td>
               </tr>
@@ -296,4 +304,17 @@ export function GeoPage({ currentRole, onCreateDraft }: GeoPageProps) {
       ) : null}
     </div>
   );
+}
+
+function formatError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+  if (error.name === "AbortError" || error.message.includes("aborted")) {
+    return "真实 AI 分析耗时较长，请稍后在任务列表查看结果";
+  }
+  if (error.message === "Failed to fetch" || error.message.includes("fetch")) {
+    return "后端接口不可用，请确认 8088 后端服务已启动且允许前端访问";
+  }
+  return error.message || fallback;
 }

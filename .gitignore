@@ -7,3 +7,5 @@ backend/target/
 .runtime/
 .DS_Store
 *.log
+.env.local
+frontend/.env.local

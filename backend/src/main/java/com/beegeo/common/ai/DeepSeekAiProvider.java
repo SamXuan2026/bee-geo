@@ -100,7 +100,7 @@ public class DeepSeekAiProvider implements AiProvider {
             List<GeoInsight> insights = payloads.stream()
                 .map(payload -> new GeoInsight(
                     normalizeRequired(payload.question, "question"),
-                    normalizeRequired(payload.aiTitle, "aiTitle"),
+                    normalizeTitle(payload),
                     normalizeRequired(payload.description, "description")
                 ))
                 .limit(3)
@@ -230,6 +230,19 @@ public class DeepSeekAiProvider implements AiProvider {
         return value.trim();
     }
 
+    private String normalizeTitle(GeoInsightPayload payload) {
+        if (payload.aiTitle != null && !payload.aiTitle.isBlank()) {
+            return payload.aiTitle.trim();
+        }
+        if (payload.title != null && !payload.title.isBlank()) {
+            return payload.title.trim();
+        }
+        if (payload.question != null && !payload.question.isBlank()) {
+            return payload.question.trim();
+        }
+        throw new AiProviderException("DeepSeek GEO 结构化结果缺少字段：aiTitle");
+    }
+
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static class ChatResponse {
         public List<Choice> choices;
@@ -246,7 +259,9 @@ public class DeepSeekAiProvider implements AiProvider {
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     static class GeoInsightPayload {
         public String question;
+        @com.fasterxml.jackson.annotation.JsonAlias({"ai_title", "ai title", "contentTitle"})
         public String aiTitle;
+        public String title;
         public String description;
     }
 }

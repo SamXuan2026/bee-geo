@@ -9,6 +9,7 @@ const DEFAULT_API_BASE_URL = "http://127.0.0.1:8088/api";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, "");
 const ENABLE_MOCK_FALLBACK = import.meta.env.VITE_ENABLE_MOCK_FALLBACK !== "false";
 const OPERATOR_ACCOUNT = import.meta.env.VITE_OPERATOR_ACCOUNT ?? "13677889001";
+const REQUEST_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 120000);
 
 export function apiRuntimeMode() {
   return {
@@ -72,7 +73,7 @@ export async function withMockFallbackFactory<T>(requester: () => Promise<T>, fa
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 6000);
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -91,6 +92,14 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
       throw new Error(`${payload.code}：${payload.message}`);
     }
     return payload.data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`接口请求超时：${Math.round(REQUEST_TIMEOUT_MS / 1000)} 秒内未返回，请稍后在任务列表查看结果`);
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("接口请求失败：未知错误");
   } finally {
     window.clearTimeout(timer);
   }

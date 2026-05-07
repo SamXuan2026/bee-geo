@@ -62,6 +62,18 @@ class DeepSeekAiProviderTest {
     }
 
     @Test
+    void shouldFallbackTitleWhenGeoInsightMissingAiTitle() {
+        DeepSeekAiProvider provider = new StubProvider("""
+            {"choices":[{"message":{"content":"{\\\"items\\\":[{\\\"question\\\":\\\"企业级知识协同平台如何提升组织知识复用？\\\",\\\"description\\\":\\\"围绕知识沉淀、权限控制和跨部门协作说明内容机会。\\\"}]}"}}]}
+            """, 200);
+
+        List<GeoInsight> insights = provider.generateGeoInsights("企业级知识协同平台");
+
+        assertEquals(1, insights.size());
+        assertEquals("企业级知识协同平台如何提升组织知识复用？", insights.get(0).aiTitle());
+    }
+
+    @Test
     void shouldBuildOfficialDeepSeekEndpoint() {
         assertEquals("https://api.deepseek.com/chat/completions", DeepSeekAiProvider.buildEndpoint("https://api.deepseek.com"));
         assertEquals("https://api.deepseek.com/chat/completions", DeepSeekAiProvider.buildEndpoint("https://api.deepseek.com/"));
